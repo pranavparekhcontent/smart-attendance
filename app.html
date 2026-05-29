@@ -58,6 +58,14 @@
         <div class="topbar-title">Install Instructions</div>
       </div>
       <div class="screen-scroll" style="padding: 20px 16px;">
+        <!-- Native Install Prompt -->
+        <div id="native-install-card" class="glass-card" style="margin-bottom: 16px; display: none; text-align: center; border: 1px solid #3B82F6; background: rgba(59,130,246,0.1);">
+          <i class="ph-fill ph-download-simple" style="font-size: 32px; color: #3B82F6; margin-bottom: 8px;"></i>
+          <h3 style="color: white; margin-top: 0; margin-bottom: 8px;">1-Click Install</h3>
+          <p style="color: var(--text-3); font-size: 14px; margin-bottom: 16px;">Your browser supports quick installation!</p>
+          <button id="btn-native-install" class="btn btn-primary" style="width: 100%; justify-content: center;">Install App Now</button>
+        </div>
+
         <div class="glass-card" style="margin-bottom: 16px;">
           <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
             <i class="ph-fill ph-android-logo" style="font-size: 24px; color: #3DDC84;"></i>
@@ -375,6 +383,36 @@
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (swHadController) window.location.reload(true);
         swHadController = true;
+      });
+    }
+  </script>
+  <script>
+    // --- NATIVE PWA INSTALL PROMPT LOGIC ---
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      // Prevent the mini-infobar from appearing on mobile
+      e.preventDefault();
+      // Stash the event so it can be triggered later.
+      deferredPrompt = e;
+      
+      // Update UI notify the user they can install the PWA
+      const installCard = document.getElementById('native-install-card');
+      if(installCard) installCard.style.display = 'block';
+    });
+
+    const installBtn = document.getElementById('btn-native-install');
+    if(installBtn) {
+      installBtn.addEventListener('click', async () => {
+        if (deferredPrompt) {
+          // Show the install prompt
+          deferredPrompt.prompt();
+          // Wait for the user to respond to the prompt
+          const { outcome } = await deferredPrompt.userChoice;
+          console.log(`User response to the install prompt: ${outcome}`);
+          // We've used the prompt, and can't use it again, throw it away
+          deferredPrompt = null;
+          document.getElementById('native-install-card').style.display = 'none';
+        }
       });
     }
   </script>

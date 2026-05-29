@@ -674,6 +674,15 @@
       window.open(gmailUrl, '_blank', 'noopener,noreferrer');
     }
   </script>
-
+  <!-- Register SW for PWA Install Prompt -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(err => {
+          console.error('SW Registration failed: ', err);
+        });
+      });
+    }
+  </script>
 </body>
 </html>
