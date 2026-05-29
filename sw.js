@@ -6,7 +6,7 @@
 //  FIXED: Robust offline fallback
 // ============================================================
 
-const CACHE_VERSION = 'attendance-v1.0.2';  // ← BUMPED: forces old caches to clear
+const CACHE_VERSION = 'attendance-v1.0.3';  // ← BUMPED: forces old caches to clear
 const ASSETS = [
   './',
   './index.html',   // ← ADDED: landing page must be cached too
@@ -55,6 +55,11 @@ self.addEventListener('activate', e => {
 //   - All other same-origin → cache-first with network update
 //   - CRITICAL: always return a response, never undefined → prevents blank page
 self.addEventListener('fetch', e => {
+  // Fix for Chrome bug with DevTools / hard refresh
+  if (e.request.cache === 'only-if-cached' && e.request.mode !== 'same-origin') {
+    return;
+  }
+
   const url = new URL(e.request.url);
 
   // 1. External requests → straight to network (no caching)
@@ -72,47 +77,55 @@ self.addEventListener('fetch', e => {
     e.respondWith(
       fetch(e.request)
         .then(r => {
-          const clone = r.clone();
-          caches.open(CACHE_VERSION).then(c => c.put(e.request, clone));
+          if (r.ok) {
+            const clone = r.clone();
+            caches.open(CACHE_VERSION).then(c => c.put(e.request, clone));
+          }
           return r;
         })
-        .catch(() => caches.match(e.request))
+        .catch(() => caches.match(e.request, { ignoreSearch: true }))
     );
     return;
   }
 
   // 3. Same-origin assets → cache-first, background network update
   e.respondWith(
-    caches.match(e.request).then(cached => {
+    caches.match(e.request, { ignoreSearch: true }).then(cached => {
       // Kick off a network fetch to keep the cache fresh
       const networkFetch = fetch(e.request).then(response => {
-        if (response && response.status === 200) {
+        if (response && response.ok) {
           const clone = response.clone();
           caches.open(CACHE_VERSION).then(cache => cache.put(e.request, clone));
         }
         return response;
-      }).catch(() => null);  // network failed → null (not undefined)
+      }).catch(err => null);  // network failed → null
 
       // Return cached immediately if available, otherwise wait for network
       return cached || networkFetch.then(r => {
-        // CRITICAL: if both cache and network fail, return a proper error page
+        // CRITICAL: if both cache and network fail, and it's a navigation request, show offline page
         if (!r) {
-          return new Response(
-            `<!DOCTYPE html><html><head><meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width,initial-scale=1">
-            <title>Offline — Smart Attendance</title>
-            <style>body{background:#0D0F14;color:#E8EAF6;font-family:sans-serif;display:flex;
-            align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;}
-            h2{color:#3B82F6;margin-bottom:8px;}p{color:#6B7280;font-size:14px;}
-            button{margin-top:20px;background:#3B82F6;color:white;border:none;padding:12px 24px;
-            border-radius:8px;cursor:pointer;font-size:15px;}</style></head><body>
-            <div><h2>You're Offline</h2><p>Please check your connection and try again.</p>
-            <button onclick="location.reload()">Try Again</button></div></body></html>`,
-            { status: 503, headers: { 'Content-Type': 'text/html' } }
-          );
+          if (e.request.mode === 'navigate' || e.request.headers.get('accept').includes('text/html')) {
+            return new Response(
+              `<!DOCTYPE html><html><head><meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width,initial-scale=1">
+              <title>Offline — Smart Attendance</title>
+              <style>body{background:#0D0F14;color:#E8EAF6;font-family:sans-serif;display:flex;
+              align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;}
+              h2{color:#3B82F6;margin-bottom:8px;}p{color:#6B7280;font-size:14px;}
+              button{margin-top:20px;background:#3B82F6;color:white;border:none;padding:12px 24px;
+              border-radius:8px;cursor:pointer;font-size:15px;}</style></head><body>
+              <div><h2>You're Offline</h2><p>Please check your connection and try again.</p>
+              <button onclick="location.reload()">Try Again</button></div></body></html>`,
+              { status: 503, headers: { 'Content-Type': 'text/html' } }
+            );
+          }
+          return new Response('', { status: 404, statusText: 'Not Found' });
         }
         return r;
       });
+    }).catch(() => {
+      // Ultimate fallback if caches.match fails catastrophically
+      return new Response('Error loading resource', { status: 500 });
     })
   );
 });
