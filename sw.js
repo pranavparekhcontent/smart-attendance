@@ -7,7 +7,7 @@
 const CACHE_VERSION = 'attendance-v1.0.0';
 const ASSETS = [
   './',
-  './index.html',
+  './app.html',
   './css/app.css',
   './css/infographic.css',
   './js/api.js',

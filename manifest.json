@@ -2,7 +2,7 @@
   "name": "Smart Attendance",
   "short_name": "Attendance",
   "description": "Smart Attendance Management System",
-  "start_url": "./index.html",
+  "start_url": "./app.html",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0F172A",
