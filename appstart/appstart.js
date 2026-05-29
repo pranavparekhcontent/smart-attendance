@@ -149,7 +149,7 @@ const AppStart = (() => {
         <div class="as-error-msg" id="as-err-msg"></div>
         <button class="as-btn" id="as-key-btn">Activate</button>
         <div style="margin-top: 16px; text-align: center;">
-          <a href="mailto:pranavparekhcontent@gmail.com?subject=Smart%20Attendance%20-%20Request%20Free%20License%20Key&body=Hi%20Pranav,%0A%0AI%20would%20like%20to%20request%20a%20free%20license%20key%20for%20the%20Smart%20Attendance%20app.%0A%0AMy%20details:%0AName:%20%0AMobile%20No:%20%0AInstitution/College:%20" 
+          <a href="javascript:window.requestLicenseKey()" 
              style="color: var(--as-primary); font-size: 0.85rem; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 16px; border: 1px solid var(--as-border); border-radius: 8px; background: rgba(59, 130, 246, 0.05); width: 100%; box-sizing: border-box; transition: background 0.2s;"
              onmouseover="this.style.background='rgba(59, 130, 246, 0.12)'"
              onmouseout="this.style.background='rgba(59, 130, 246, 0.05)'">
@@ -218,8 +218,8 @@ const AppStart = (() => {
 
     if (licResult?.collegeName) _el("as-lock-college").textContent = licResult.collegeName;
     _el("as-lock-sub").innerHTML = isExpired 
-      ? `Your license expired on <strong>${licResult.expiryDate.toLocaleDateString()}</strong>.<br>Please <a href="mailto:pranavparekhcontent@gmail.com?subject=Smart%20Attendance%20-%20Renew%20License&body=Hi%20Pranav,%0A%0AI%20would%20like%20to%20renew%20the%20expired%20license%20key%20for%20the%20Smart%20Attendance%20app.%0A%0AMy%20details:%0AName:%20%0AMobile%20No:%20%0ACollege:%20${encodeURIComponent(licResult.collegeName)}" style="color:var(--as-primary);text-decoration:none;font-weight:600;">contact the developer</a> to renew.`
-      : `The entered key is invalid.<br>Please <a href="mailto:pranavparekhcontent@gmail.com?subject=Smart%20Attendance%20-%20Request%20Free%20License%20Key&body=Hi%20Pranav,%0A%0AI%20would%20like%20to%20request%20a%20free%20license%20key%20for%20the%20Smart%20Attendance%20app.%0A%0AMy%20details:%0AName:%20%0AMobile%20No:%20%0AInstitution/College:%20" style="color:var(--as-primary);text-decoration:none;font-weight:600;">contact the developer</a> for a free key.`;
+      ? `Your license expired on <strong>${licResult.expiryDate.toLocaleDateString()}</strong>.<br>Please <a href="javascript:window.requestLicenseKey('${licResult.collegeName.replace(/'/g, "\\'")}')" style="color:var(--as-primary);text-decoration:none;font-weight:600;">contact the developer</a> to renew.`
+      : `The entered key is invalid.<br>Please <a href="javascript:window.requestLicenseKey()" style="color:var(--as-primary);text-decoration:none;font-weight:600;">contact the developer</a> for a free key.`;
 
     card.querySelector(".as-retry-btn").addEventListener("click", () => _clearAndRetry());
   }
@@ -775,3 +775,22 @@ const AppStart = (() => {
 
   return { init, _clearAndRetry };
 })();
+
+// Global secure license key request handler (Redirection: Mobile app or Desktop Gmail Web)
+window.requestLicenseKey = function(collegeName = "") {
+  const email = "pranavparekhcontent@gmail.com";
+  const subject = collegeName ? "Smart Attendance - Renew License" : "Smart Attendance - Request Free License Key";
+  const body = collegeName 
+    ? `Hi Pranav,\n\nI would like to renew the expired license key for the Smart Attendance app.\n\nMy details:\nName: \nMobile No: \nCollege: ${collegeName}`
+    : `Hi Pranav,\n\nI would like to request a free license key for the Smart Attendance app.\n\nMy details:\nName: \nMobile No: \nInstitution/College: `;
+  
+  const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  
+  const isMobile = /Android|iPhone|iPad|iPod|Opera Mini|IEMobile/i.test(navigator.userAgent);
+  if (isMobile) {
+    window.location.href = mailtoUrl;
+  } else {
+    window.open(gmailUrl, '_blank');
+  }
+};

@@ -581,7 +581,7 @@
           <li><i class="ph-fill ph-check-circle"></i> Full Offline Support & PWA Installation</li>
         </ul>
         
-        <a href="mailto:pranavparekhcontent@gmail.com?subject=Smart%20Attendance%20-%20Request%20Free%20License%20Key&body=Hi%20Pranav,%0A%0AI%20would%20like%20to%20request%20a%20free%20license%20key%20for%20the%20Smart%20Attendance%20app.%0A%0AMy%20details:%0AName:%20%0AMobile%20No:%20%0AInstitution/College:%20" 
+        <a href="javascript:requestLicenseKey()" 
            class="btn btn-primary" style="width: 100%; justify-content: center; padding: 14px 0; border-radius: 12px; margin-top: 16px;">
           <i class="ph-bold ph-key"></i> Request Free License Key
         </a>
@@ -647,6 +647,23 @@
         modal.style.display = 'none';
       } else {
         modal.style.display = 'flex';
+      }
+    }
+
+    function requestLicenseKey() {
+      const email = "pranavparekhcontent@gmail.com";
+      const subject = "Smart Attendance - Request Free License Key";
+      const body = "Hi Pranav,\n\nI would like to request a free license key for the Smart Attendance app.\n\nMy details:\nName: \nMobile No: \nInstitution/College: ";
+      
+      const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      
+      // On mobile, trigger standard mailto. On desktop, redirect directly to Gmail web compose.
+      const isMobile = /Android|iPhone|iPad|iPod|Opera Mini|IEMobile/i.test(navigator.userAgent);
+      if (isMobile) {
+        window.location.href = mailtoUrl;
+      } else {
+        window.open(gmailUrl, '_blank');
       }
     }
   </script>
