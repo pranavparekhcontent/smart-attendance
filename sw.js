@@ -6,7 +6,7 @@
 //  FIXED: Robust offline fallback
 // ============================================================
 
-const CACHE_VERSION = 'attendance-v1.0.3';  // ← BUMPED: forces old caches to clear
+const CACHE_VERSION = 'attendance-v1.0.4';  // ← BUMPED: forces old caches to clear
 const ASSETS = [
   './',
   './index.html',   // ← ADDED: landing page must be cached too
@@ -90,43 +90,64 @@ self.addEventListener('fetch', e => {
 
   // 3. Same-origin assets → cache-first, background network update
   e.respondWith(
-    caches.match(e.request, { ignoreSearch: true }).then(cached => {
-      // Kick off a network fetch to keep the cache fresh
-      const networkFetch = fetch(e.request).then(response => {
-        if (response && response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE_VERSION).then(cache => cache.put(e.request, clone));
-        }
-        return response;
-      }).catch(err => null);  // network failed → null
-
-      // Return cached immediately if available, otherwise wait for network
-      return cached || networkFetch.then(r => {
-        // CRITICAL: if both cache and network fail, and it's a navigation request, show offline page
-        if (!r) {
-          if (e.request.mode === 'navigate' || e.request.headers.get('accept').includes('text/html')) {
-            return new Response(
-              `<!DOCTYPE html><html><head><meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width,initial-scale=1">
-              <title>Offline — Smart Attendance</title>
-              <style>body{background:#0D0F14;color:#E8EAF6;font-family:sans-serif;display:flex;
-              align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;}
-              h2{color:#3B82F6;margin-bottom:8px;}p{color:#6B7280;font-size:14px;}
-              button{margin-top:20px;background:#3B82F6;color:white;border:none;padding:12px 24px;
-              border-radius:8px;cursor:pointer;font-size:15px;}</style></head><body>
-              <div><h2>You're Offline</h2><p>Please check your connection and try again.</p>
-              <button onclick="location.reload()">Try Again</button></div></body></html>`,
-              { status: 503, headers: { 'Content-Type': 'text/html' } }
-            );
+    (async function() {
+      try {
+        const cached = await caches.match(e.request, { ignoreSearch: true });
+        
+        // Kick off a network fetch to keep the cache fresh
+        const networkPromise = fetch(e.request).then(response => {
+          if (response && response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_VERSION).then(cache => cache.put(e.request, clone));
           }
-          return new Response('', { status: 404, statusText: 'Not Found' });
+          return response;
+        }).catch(() => null);  // network failed → null
+
+        // Return cached immediately if available, otherwise wait for network
+        if (cached) return cached;
+        
+        const networkResponse = await networkPromise;
+        if (networkResponse) return networkResponse;
+        
+        // Both cache and network failed → show offline page for navigations
+        if (e.request.mode === 'navigate' || (e.request.headers.get('accept') || '').includes('text/html')) {
+          return new Response(
+            `<!DOCTYPE html><html><head><meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <title>Offline — Smart Attendance</title>
+            <style>body{background:#0D0F14;color:#E8EAF6;font-family:sans-serif;display:flex;
+            align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;}
+            h2{color:#3B82F6;margin-bottom:8px;}p{color:#6B7280;font-size:14px;}
+            button{margin-top:20px;background:#3B82F6;color:white;border:none;padding:12px 24px;
+            border-radius:8px;cursor:pointer;font-size:15px;}</style></head><body>
+            <div><h2>You're Offline</h2><p>Please check your connection and try again.</p>
+            <button onclick="location.reload()">Try Again</button></div></body></html>`,
+            { status: 503, headers: { 'Content-Type': 'text/html' } }
+          );
         }
-        return r;
-      });
-    }).catch(() => {
-      // Ultimate fallback if caches.match fails catastrophically
-      return new Response('Error loading resource', { status: 500 });
-    })
+        return new Response('', { status: 404, statusText: 'Not Found' });
+      } catch (err) {
+        // ULTIMATE SAFETY NET: if ANYTHING crashes, try network, then show offline page
+        console.error('SW fetch handler error:', err);
+        try {
+          return await fetch(e.request);
+        } catch(e2) {
+          return new Response(
+            `<!DOCTYPE html><html><head><meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <title>Offline — Smart Attendance</title>
+            <style>body{background:#0D0F14;color:#E8EAF6;font-family:sans-serif;display:flex;
+            align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;}
+            h2{color:#3B82F6;margin-bottom:8px;}p{color:#6B7280;font-size:14px;}
+            button{margin-top:20px;background:#3B82F6;color:white;border:none;padding:12px 24px;
+            border-radius:8px;cursor:pointer;font-size:15px;}</style></head><body>
+            <div><h2>You're Offline</h2><p>Please check your connection and try again.</p>
+            <button onclick="location.reload()">Try Again</button></div></body></html>`,
+            { status: 503, headers: { 'Content-Type': 'text/html' } }
+          );
+        }
+      }
+    })()
   );
 });
 
