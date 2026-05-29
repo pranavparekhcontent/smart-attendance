@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#0D0F14" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Smart Attendance</title>
+  
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- 1. APPSTART ENGINE STYLES (must come before app.css so app can override if needed) -->
+  <link rel="stylesheet" href="./appstart/appstart.css">
+  <link rel="stylesheet" href="css/app.css">
+  
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/rmdiper-logo.png">
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body style="background: #0D0F14; margin: 0; padding: 0;">
+
+  <div id="app">
+    <!-- ==========================================
+         SCREEN 1: LOGIN / ROLE SELECT
+         ========================================== -->
+    <div id="screen-login" class="screen">
+      <div class="topbar" style="justify-content: center;">
+        <div class="topbar-title" style="text-align: center;">Welcome</div>
+      </div>
+      <div class="screen-scroll" style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; padding-bottom: 80px;">
+        <div class="role-cards" style="width: 100%; max-width: 400px;">
+          <div class="role-card faculty-card" onclick="App.showLoginModal('faculty')">
+            <div class="role-icon-wrap"><i class="ph-duotone ph-fingerprint"></i></div>
+            <div style="flex: 1;">
+              <div class="role-name">Faculty</div>
+              <div class="role-desc">Take attendance, view reports</div>
+            </div>
+            <i class="ph-bold ph-caret-right role-arrow"></i>
+          </div>
+          
+          <div style="margin-top: 32px; display: flex; justify-content: center; width: 100%;">
+            <button class="btn btn-glass btn-sm" onclick="App.navigate('install-guide')" style="width: auto; padding: 10px 20px; font-size: 13px; color: var(--text-3); display: flex; align-items: center; gap: 8px;">
+              <i class="ph-bold ph-question"></i> How to Install App?
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==========================================
+         SCREEN 2: INSTALL GUIDE 
+         ========================================== -->
+    <div id="screen-install-guide" class="screen">
+      <div class="topbar">
+        <div class="topbar-action" onclick="App.navigate('login')"><i class="ph-bold ph-caret-left"></i></div>
+        <div class="topbar-title">Install Instructions</div>
+      </div>
+      <div class="screen-scroll" style="padding: 20px 16px;">
+        <div class="glass-card" style="margin-bottom: 16px;">
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+            <i class="ph-fill ph-android-logo" style="font-size: 24px; color: #3DDC84;"></i>
+            <h3 style="color: white; margin: 0;">Android (Chrome)</h3>
+          </div>
+          <ol style="color: var(--text-3); font-size: 14px; padding-left: 20px; line-height: 1.6;">
+            <li>Open this page in <b>Chrome</b>.</li>
+            <li>Tap the <b>three dots (⋮)</b> in the top right.</li>
+            <li>Select <b>"Add to Home screen"</b> or <b>"Install App"</b>.</li>
+          </ol>
+        </div>
+
+        <div class="glass-card" style="margin-bottom: 16px;">
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+            <i class="ph-fill ph-apple-logo" style="font-size: 24px; color: #fff;"></i>
+            <h3 style="color: white; margin: 0;">iPhone / iPad (Safari)</h3>
+          </div>
+          <ol style="color: var(--text-3); font-size: 14px; padding-left: 20px; line-height: 1.6;">
+            <li>Open this page in <b>Safari</b>.</li>
+            <li>Tap the <b>Share icon (↑)</b> at the bottom.</li>
+            <li>Scroll down and tap <b>"Add to Home Screen"</b>.</li>
+          </ol>
+        </div>
+
+        <div class="glass-card">
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+            <i class="ph-fill ph-desktop" style="font-size: 24px; color: var(--accent);"></i>
+            <h3 style="color: white; margin: 0;">Desktop / Laptop</h3>
+          </div>
+          <ol style="color: var(--text-3); font-size: 14px; padding-left: 20px; line-height: 1.6;">
+            <li>Open this page in <b>Chrome/Edge</b>.</li>
+            <li>Click the <b>Install icon (⊕)</b> in the address bar.</li>
+            <li>Or go to Menu → <b>Save and Share</b> → <b>Install App</b>.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==========================================
+         SCREEN 3: FACULTY DASHBOARD
+         ========================================== -->
+    <div id="screen-faculty-dash" class="screen">
+      <div class="topbar">
+        <div class="topbar-title">Dashboard</div>
+        <div class="topbar-action" onclick="App.logout()"><i class="ph-bold ph-sign-out"></i></div>
+      </div>
+      <div class="screen-scroll">
+        <div class="home-header">
+          <div class="home-avatar" id="dash-avatar">F</div>
+          <div>
+            <div class="home-greeting-sub">Welcome Back</div>
+            <div class="home-greeting-name" id="dash-faculty-name">Faculty Name</div>
+          </div>
+        </div>
+
+        <div style="padding: 0 16px; margin-bottom: 24px; display: flex; flex-direction: column; align-items: center;">
+          <div class="mode-section-title" style="text-align: center;">Session Date</div>
+          <div class="date-pill" onclick="App.showDatePicker()" style="width: 100%; max-width: 240px; justify-content: center;">
+            <i class="ph-bold ph-calendar-blank"></i>
+            <span id="dash-date">Select Date</span>
+          </div>
+        </div>
+
+        <div style="padding: 0 16px; margin-bottom: 24px; display: flex; flex-direction: column; align-items: center;">
+          <div class="mode-section-title" style="text-align: center;">Select Subject</div>
+          <div class="glass-card subject-select-card heart-beat" id="subject-card" onclick="App.showSubjectPicker()" style="width: 100%; max-width: 320px; display: flex; align-items: center;">
+            <div style="flex:1;">
+              <div id="dash-subject-name" class="subject-placeholder">Tap to select subject</div>
+              <div id="dash-subject-meta" class="subject-selected-meta"></div>
+            </div>
+            <i class="ph-bold ph-caret-down" style="color: var(--text-4);"></i>
+          </div>
+        </div>
+
+        <div style="padding: 0 16px; margin-bottom: 24px; display: flex; justify-content: center;">
+          <button class="btn btn-primary btn-full btn-lg" id="btn-start-attendance" onclick="App.startAttendanceFlow()" style="max-width: 320px;">
+            <i class="ph-bold ph-play"></i> Start Attendance
+          </button>
+        </div>
+
+        <div style="padding: 0 16px; margin-bottom: 24px; display: flex; flex-direction: column; align-items: center;">
+          <div class="mode-section-title" style="text-align: center;">Quick Actions</div>
+          <div class="quick-actions" style="width: 100%; max-width: 320px;">
+            <div class="quick-card" onclick="App.openReports()" style="flex-direction: row; align-items: center; justify-content: center; gap: 16px;">
+              <div class="quick-card-icon"><i class="ph-bold ph-chart-bar"></i></div>
+              <div>
+                <div class="quick-card-label">Reports</div>
+                <div class="quick-card-sub">View & Download</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==========================================
+         SCREEN 4: ATTENDANCE ENTRY (Modes)
+         ========================================== -->
+    <div id="screen-attendance-mode" class="screen">
+      <div class="topbar">
+        <div class="topbar-back" onclick="App.navigate('faculty-dash')"><i class="ph-bold ph-caret-left"></i></div>
+        <div class="topbar-title">Mark Attendance</div>
+      </div>
+      
+      <!-- Summary Bar -->
+      <div class="summary-bar">
+        <div class="summary-stat present">
+          <div class="summary-num" id="att-count-p">0</div>
+          <div class="summary-lbl">Present</div>
+        </div>
+        <div class="summary-stat absent">
+          <div class="summary-num" id="att-count-a">0</div>
+          <div class="summary-lbl">Absent</div>
+        </div>
+        <div class="summary-stat total">
+          <div class="summary-num" id="att-count-t">0</div>
+          <div class="summary-lbl">Total</div>
+        </div>
+      </div>
+
+      <div class="screen-scroll">
+        <div style="padding: 16px; margin-bottom: 16px;">
+          <h3 style="color: white; font-size: 18px; margin-bottom: 4px;" id="att-subject-name">Subject Name</h3>
+          <p style="color: var(--text-3); font-size: 13px;" id="att-subject-meta">Year | Sem | Date</p>
+        </div>
+
+        <div id="att-batch-selector" style="display: none; padding: 0 16px 16px;">
+          <div class="mode-section-title">Select Batch</div>
+          <div class="batch-chips" id="att-batch-list"></div>
+        </div>
+
+        <!-- Student List View -->
+        <div id="att-list-view" style="display: none;">
+          <div class="mode-section-title" style="padding: 0 16px;">Student List</div>
+          <div id="att-students-container" style="padding-bottom: 24px;"></div>
+        </div>
+
+        <!-- Rollcall View -->
+        <div id="att-rollcall-view" style="display: none;">
+          <div class="glass-card rollcall-student-card" style="margin: 0 16px 24px;">
+            <div class="rollcall-counter" id="rollcall-counter">Student 1 of 60</div>
+            <div class="rollcall-roll-num" id="rollcall-roll">01</div>
+            <div class="rollcall-name" id="rollcall-name">Student Name</div>
+            <div class="rollcall-prev-indicator" id="rollcall-prev"></div>
+          </div>
+          <div class="rollcall-buttons">
+            <button class="rollcall-btn-p" onclick="App.markRollcall('P')">PRESENT</button>
+            <button class="rollcall-btn-a" onclick="App.markRollcall('A')">ABSENT</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Footer actions (Save) -->
+      <div id="att-footer" style="padding: 16px 16px max(16px, env(safe-area-inset-bottom)); background: var(--bg-card); border-top: 1px solid var(--border-color);">
+        <button class="btn btn-primary btn-full" id="btn-save-attendance" onclick="App.saveAttendance()">
+          <i class="ph-bold ph-check-circle"></i> Save Attendance
+        </button>
+      </div>
+    </div>
+
+    <!-- ==========================================
+         SCREEN 5: REPORTS
+         ========================================== -->
+    <div id="screen-reports" class="screen">
+      <div class="topbar">
+        <div class="topbar-back" onclick="App.navigate('faculty-dash')"><i class="ph-bold ph-caret-left"></i></div>
+        <div class="topbar-title">Reports</div>
+      </div>
+      <div class="screen-scroll">
+        <div style="padding: 16px;">
+          <div class="mode-section-title">Select Subject for Reports</div>
+          <div class="glass-card subject-select-card" onclick="App.showSubjectPicker('reports')">
+            <div style="flex:1;">
+              <div id="rep-subject-name" class="subject-placeholder">Tap to select subject</div>
+            </div>
+            <i class="ph-bold ph-caret-down" style="color: var(--text-4);"></i>
+          </div>
+        </div>
+
+        <div id="reports-batch-selector" style="display: none; padding: 0 16px 16px;">
+          <div class="mode-section-title">Select Batch</div>
+          <div class="batch-chips" id="rep-batch-list"></div>
+        </div>
+
+        <div id="reports-filters" style="display: none; padding: 0 16px 16px;">
+          <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+            <div class="input-group" style="flex: 1;">
+              <div class="input-label">From</div>
+              <input type="date" class="input" id="rep-start-date" onchange="App.handleReportFilterChange()">
+            </div>
+            <div class="input-group" style="flex: 1;">
+              <div class="input-label">To</div>
+              <input type="date" class="input" id="rep-end-date" onchange="App.handleReportFilterChange()">
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px; justify-content: center; margin-top: 8px;">
+            <button class="btn btn-glass btn-sm" style="max-width: 320px; width: 100%;" onclick="App.setReportRange('all')">All Time</button>
+          </div>
+        </div>
+
+        <!-- Tabs (Aesthetically Centered) -->
+        <div style="display: flex; gap: 8px; padding: 0 16px; margin-bottom: 24px; justify-content: center; flex-wrap: wrap;">
+          <button class="badge badge-primary rep-tab" data-tab="class" onclick="App.switchReportTab('class')">Class-wise</button>
+          <button class="badge rep-tab" style="background:var(--bg-surface); color:var(--text-3); border:1px solid var(--border-color)" data-tab="date" onclick="App.switchReportTab('date')">Date-wise</button>
+          <button class="badge rep-tab" style="background:var(--bg-surface); color:var(--text-3); border:1px solid var(--border-color)" data-tab="defaulter" onclick="App.switchReportTab('defaulter')">Defaulters</button>
+        </div>
+
+        <div id="rep-content" style="padding: 0 16px; padding-bottom: 80px;">
+          <div class="empty-state">
+            <i class="ph-bold ph-chart-bar empty-icon"></i>
+            <div class="empty-title">Select a subject to view reports</div>
+          </div>
+        </div>
+
+        <!-- Report Download Footer -->
+        <div id="rep-footer" style="display: none; position: sticky; bottom: 0; padding: 16px 16px max(16px, env(safe-area-inset-bottom)); background: var(--bg-page); border-top: 1px solid var(--border-color); z-index: 10;">
+          <button class="btn btn-success btn-full" onclick="App.downloadReport()">
+            <i class="ph-bold ph-download-simple"></i> Download Excel Report
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  
+  <!-- LOADER OVERLAY -->
+  <div id="loader-overlay" class="loader-overlay" style="display: none;">
+    <div class="loader-content">
+      <div class="loader-icon-wrap">
+        <i id="loader-icon" class="ph-fill ph-cloud-arrow-down"></i>
+      </div>
+      <div id="loader-text" class="loader-text">Syncing Data...</div>
+    </div>
+  </div>
+
+  <!-- TOAST CONTAINER -->
+  <div id="toast-backdrop" class="toast-backdrop" style="display: none;"></div>
+  <div id="toast-container"></div>
+  
+  <!-- MODAL CONTAINER -->
+  <div id="modal-backdrop" class="modal-backdrop" style="display: none;" onclick="App.closeModal(event)">
+    <div class="modal" id="modal-content" onclick="event.stopPropagation()">
+      <!-- Modal content injected dynamically -->
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       APPSTART ENGINE (loads BEFORE app logic)
+       ═══════════════════════════════════════════════════════════ -->
+  <script src="./appstart/config.js"></script>
+  <script src="./appstart/license.js"></script>
+  <script src="./appstart/keystore.js"></script>
+
+  <!-- Smart Engine Modules (ES Module imports) -->
+  <script type="module">
+    import { Translator }    from './appstart/translator.js';
+    import { SchemaLearner } from './appstart/schema.js';
+    window.Translator    = Translator;
+    window.SchemaLearner = SchemaLearner;
+  </script>
+
+  <script src="./appstart/appstart.js"></script>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       APP LOGIC (loads AFTER engine)
+       ═══════════════════════════════════════════════════════════ -->
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+
+  <!-- BOOTSTRAP: Wire engine → app -->
+  <script>
+    document.addEventListener('appstart:complete', async (e) => {
+      console.log("🏁 AppStart Complete. Launching app...");
+      const context = e.detail;
+      
+      // CRITICAL: Set global context so API module can find the serverUrl
+      window.appStartContext = context;
+      
+      try {
+        await App.initFromEngine(context);
+        console.log("✅ App Initialized.");
+      } catch (err) {
+        console.error("❌ APP INIT FAILED:", err);
+        document.getElementById('app').innerHTML = `
+          <div style="background:#111; color:#ff4d4d; padding:40px; text-align:center; font-family:sans-serif; height:100vh; display:flex; flex-direction:column; justify-content:center;">
+            <h3 style="margin-bottom:10px;">Application Error</h3>
+            <p style="opacity:0.8; font-size:14px; margin-bottom:20px;">${err.message}</p>
+            <button onclick="location.reload()" style="background:#ff4d4d; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer;">Retry</button>
+          </div>`;
+      }
+    });
+
+    AppStart.init();
+  </script>
+
+  <!-- Service Worker Registration + Mandatory Update -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').then(reg => {
+        // Check for updates every 60 seconds
+        setInterval(() => reg.update(), 60000);
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'activated' && navigator.serviceWorker.controller) {
+              // New version detected — mandatory reload
+              window.location.reload(true);
+            }
+          });
+        });
+      }).catch(err => console.warn('SW registration failed:', err));
+
+      // If the controlling SW changes (another tab updated), reload immediately
+      let swHadController = !!navigator.serviceWorker.controller;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (swHadController) window.location.reload(true);
+        swHadController = true;
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,166 @@
+/* ═══════════════════════════════════════════════════════
+   CYBERTRUCK INFOGRAPHIC & DASHBOARD COMPONENTS
+   Dark neumorphic • Electric Blue accents
+   ═══════════════════════════════════════════════════════ */
+
+/* ── 1. Vertical Timeline (Subject List) ── */
+.infographic-timeline-step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  background: var(--card-gradient);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  overflow: hidden;
+  gap: 12px;
+  transition: var(--transition);
+  cursor: pointer;
+  animation: cardFadeIn 0.3s ease backwards;
+}
+
+/* No vertical line per sample */
+
+/* Hide timeline bullet per sample */
+.timeline-bullet { display: none; }
+
+/* Color Coding Utility Classes - Carved Glass Styling */
+.clr-code { 
+  color: #4A99FF; font-weight: 500; letter-spacing: 0.02em;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4); 
+  transition: text-shadow 0.3s ease; 
+}
+.clr-name { 
+  color: #FFFFFF; font-weight: 300; letter-spacing: 0.01em; 
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+}
+.clr-type { 
+  color: #FFB400; font-weight: 500; font-size: 0.82em; 
+  text-transform: uppercase; letter-spacing: 0.08em; 
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4); 
+  transition: text-shadow 0.3s ease; 
+}
+.clr-meta { 
+  color: #10B981; font-weight: 400; font-size: 0.82em; opacity: 0.85; 
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4); 
+  transition: text-shadow 0.3s ease; 
+}
+
+.infographic-timeline-step .item-info { flex: 1; z-index: 1; }
+.timeline-action { z-index: 1; color: var(--accent); font-size: 1.1rem; }
+
+.infographic-timeline-step:hover {
+  transform: scale(1.01);
+  border-color: rgba(30,144,255,0.3);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5), 0 0 12px rgba(30,144,255,0.05);
+  background: rgba(255,255,255,0.02);
+}
+
+.infographic-timeline-step:hover .clr-code { text-shadow: 0 0 10px rgba(74, 153, 255, 0.4); }
+.infographic-timeline-step:hover .clr-type { text-shadow: 0 0 10px rgba(255, 180, 0, 0.4); }
+.infographic-timeline-step:hover .clr-meta { text-shadow: 0 0 10px rgba(16, 185, 129, 0.4); }
+
+/* Stagger timeline items */
+.infographic-timeline-step:nth-child(1) { animation-delay: 0.00s; }
+.infographic-timeline-step:nth-child(2) { animation-delay: 0.08s; }
+.infographic-timeline-step:nth-child(3) { animation-delay: 0.16s; }
+.infographic-timeline-step:nth-child(4) { animation-delay: 0.24s; }
+.infographic-timeline-step:nth-child(5) { animation-delay: 0.32s; }
+.infographic-timeline-step:nth-child(n+6) { animation-delay: 0.40s; }
+
+
+/* ── 2. Attendance Mode Dashboard (4-Step) ── */
+.infographic-4step {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+}
+
+/* Tablet/desktop: horizontal layout */
+body.layout-tablet .infographic-4step,
+body.layout-desktop-wide .infographic-4step {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.info-step {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--card-gradient);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  border: 1px solid var(--border-color);
+  position: relative;
+  overflow: hidden;
+  transition: var(--transition);
+  box-shadow: var(--neu-shadow);
+  cursor: pointer;
+  flex: 1;
+  min-width: 250px;
+}
+
+/* Subtle shimmer sweep */
+.info-step::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.02), transparent);
+  transform: translateX(-100%) skewX(-15deg);
+  transition: transform 0.5s ease;
+  pointer-events: none;
+}
+.info-step:hover::after { transform: translateX(100%) skewX(-15deg); }
+
+.info-step:hover {
+  transform: translateY(-3px);
+  border-color: rgba(30,144,255,0.25);
+  box-shadow: var(--neu-shadow-lg), 0 0 16px var(--accent-soft);
+}
+.info-step:active { transform: scale(0.97); }
+
+/* Large step indicator (Icon or Number) */
+.info-num {
+  font-size: 38px;
+  line-height: 1;
+  color: rgba(255,255,255,0.1);
+  transition: var(--transition);
+  min-width: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+
+.info-step:hover .info-num {
+  color: var(--accent);
+  text-shadow: 0 0 16px var(--accent-glow);
+}
+
+.info-content { flex: 1; }
+.info-title {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 16px; font-weight: 600; color: var(--text-1);
+  margin-bottom: 4px;
+}
+.info-desc { font-size: 12px; color: var(--text-3); line-height: 1.4; }
+
+.info-action {
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  background: rgba(30,144,255,0.08);
+  border: 1px solid rgba(30,144,255,0.15);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent);
+  transition: var(--transition);
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+.info-step:hover .info-action {
+  background: var(--accent-gradient);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 0 16px var(--accent-glow);
+}
+
+/* Make sure the container padding looks right for infographics */
+.modal-body { padding: 24px 20px !important; }
