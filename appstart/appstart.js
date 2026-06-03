@@ -277,7 +277,7 @@ const AppStart = (() => {
     management_name:   ["management name", "management", "trust", "society", "mgmt name"],
     license_key:       ["license key", "license", "key", "activation", "licence"],
     server_url:        ["server url", "server", "api url", "backend", "api"],
-    sheet_id:          ["sheet id", "sheetid", "spreadsheet id", "sheet_id"],
+    sheet_id:          ["sheet id", "sheetid", "spreadsheet id", "sheet_id", "input sheet id", "input_sheet_id"],
     management_logo:   ["management logo", "mgmt logo", "trust logo"],
     college_logo:      ["college logo", "institution logo", "inst logo"],
     output_sheet_id:   ["output sheet id", "output id", "output excel link", "output link"],
