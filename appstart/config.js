@@ -27,18 +27,27 @@ const APP_CONFIG = {
   // ── License ───────────────────────────────────────────────
   LICENSE_STORAGE_KEY: "attendance_license",
 
+  // ── Central API Configuration ──────────────────────────────
+  // Change this to your deployed Google Apps Script Web App URL
+  CENTRAL_API_URL: "https://script.google.com/macros/s/AKfycbwdEMH_36ryLox45JmzdI6v8z7J0AEgk5gtFHwmy87V5aJhlpxAovaz6UNHdrOp8pH-/exec",
+
   // ── Config Sheet ──────────────────────────────────────────
   // MASTER CONFIG SHEET (Common for all apps)
   // SMART DETECTION — column order doesn't matter!
   CONFIG_SHEET_URL:
     "https://docs.google.com/spreadsheets/d/1p3WoC2s-YYqn9ekqkQ72banxAAd-ujlDoFYpv4fkXmk/gviz/tq?tqx=out:json",
 
-  dataFetcher: async (serverUrl) => {
+  dataFetcher: async (serverUrl, sheetId = "") => {
     // Sanitize: Remove trailing slashes and any accidental query params from the sheet string
     const cleanUrl = serverUrl.replace(/\/+$/, "").replace(/\?.*$/, "");
     
+    let targetUrl = cleanUrl + '?action=getAllData';
+    if (sheetId) {
+      targetUrl += '&sheetId=' + encodeURIComponent(sheetId);
+    }
+    
     return {
-      allData: fetch(cleanUrl + '?action=getAllData')
+      allData: fetch(targetUrl)
         .then(r => {
           if (!r.ok) throw new Error('HTTP ' + r.status);
           return r.json();

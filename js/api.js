@@ -19,6 +19,10 @@ const API = (() => {
   // ─── Internal helpers ───
 
   async function _get(action, params = {}) {
+    // Inject sheetId if available in context
+    if (window.appStartContext && window.appStartContext.sheetId) {
+      params.sheetId = window.appStartContext.sheetId;
+    }
     let url = _getBaseUrl() + '?action=' + encodeURIComponent(action);
     for (const k in params) {
       url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
@@ -60,6 +64,12 @@ const API = (() => {
 
   async function _post(action, body) {
     let url = _getBaseUrl() + '?action=' + encodeURIComponent(action);
+    // Inject sheetId into POST body if available
+    if (window.appStartContext && window.appStartContext.sheetId) {
+      if (typeof body === 'object' && body !== null) {
+        body.sheetId = window.appStartContext.sheetId;
+      }
+    }
 
     let lastErr;
     for (let i = 0; i < MAX_RETRIES; i++) {
@@ -161,7 +171,12 @@ const API = (() => {
     
     // Ensure URL doesn't have trailing slash for consistency
     const baseUrl = serverUrl.replace(/\/$/, "");
-    const targetUrl = `${baseUrl}?action=getAllData`;
+    let targetUrl = `${baseUrl}?action=getAllData`;
+    
+    // Inject sheetId if available in context
+    if (window.appStartContext && window.appStartContext.sheetId) {
+      targetUrl += '&sheetId=' + encodeURIComponent(window.appStartContext.sheetId);
+    }
     
     console.log("🌐 API: Fetching from", targetUrl);
 

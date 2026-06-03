@@ -277,6 +277,7 @@ const AppStart = (() => {
     management_name:   ["management name", "management", "trust", "society", "mgmt name"],
     license_key:       ["license key", "license", "key", "activation", "licence"],
     server_url:        ["server url", "server", "api url", "backend", "api"],
+    sheet_id:          ["sheet id", "sheetid", "spreadsheet id"],
     management_logo:   ["management logo", "mgmt logo", "trust logo"],
     college_logo:      ["college logo", "institution logo", "inst logo"],
     output_sheet_id:   ["output sheet id", "output id", "output excel link", "output link"],
@@ -429,6 +430,7 @@ const AppStart = (() => {
           management_name:   _v(row, "management_name"),
           license_key:       _v(row, "license_key"),
           server_url:        _v(row, "server_url"),
+          sheet_id:          _v(row, "sheet_id"),
           management_logo:   _v(row, "management_logo"),
           college_logo:      _v(row, "college_logo"),
           maker_animation:   _v(row, "maker_animation"),
@@ -624,9 +626,20 @@ const AppStart = (() => {
     _setPhase("ph-server", "active", "Connecting…");
     try {
       _sheetConfig = await _fetchSheetConfig(APP_CONFIG.CONFIG_SHEET_URL, _licenseKey);
+      const sheetId = _sheetConfig["sheet_id"] || "";
       _serverUrl = _sheetConfig["server_url"] || "";
-      if (!_serverUrl) throw new Error("Server URL empty");
-      _setPhase("ph-server", "done", _serverUrl.substring(0, 24) + "...");
+      
+      if (!sheetId && !_serverUrl) {
+        throw new Error("Server URL or Sheet ID empty");
+      }
+      
+      // If we have a sheetId and a Central API URL is configured, use the Central API
+      if (sheetId && APP_CONFIG.CENTRAL_API_URL) {
+        _serverUrl = APP_CONFIG.CENTRAL_API_URL;
+      }
+      
+      const displayUrl = _serverUrl || `Sheet ID: ${sheetId}`;
+      _setPhase("ph-server", "done", displayUrl.substring(0, 24) + "...");
     } catch (err) {
       _setPhase("ph-server", "error", err.message || "Failed");
       console.error("AppStart: config fetch failed →", err);
@@ -692,6 +705,7 @@ const AppStart = (() => {
         managementName: _sheetConfig["management_name"]  || "",
         expiryDate:     _licenseResult.expiryDate,
         serverUrl:      _serverUrl,
+        sheetId:        _sheetConfig["sheet_id"] || "",
         managementLogo: _sheetConfig["management_logo"]  || "",
         collegeLogo:    _sheetConfig["college_logo"]     || "",
         contactNo:      _sheetConfig["contact_no"]       || "",
@@ -722,7 +736,7 @@ const AppStart = (() => {
     if (!APP_CONFIG.dataFetcher) return;
 
     // 1. Execute the fetcher (might be async or return a map of promises)
-    const promisesOrMap = await APP_CONFIG.dataFetcher(_serverUrl);
+    const promisesOrMap = await APP_CONFIG.dataFetcher(_serverUrl, _sheetConfig["sheet_id"] || "");
 
     if (!promisesOrMap) return;
 
