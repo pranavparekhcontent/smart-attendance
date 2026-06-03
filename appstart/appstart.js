@@ -353,7 +353,7 @@ const AppStart = (() => {
   // Scans headers to detect columns, then finds the row where
   // the license_key column matches the provided key.
   // Robust request helper (replaces fetch for better CORS/Network error visibility)
-  function _request(url) {
+  function _rawRequest(url) {
     return new Promise((resolve, reject) => {
       if (window.location.protocol === "file:") {
         return reject(new Error("Browsers block Google Sheets on 'file://'. Please use a local server."));
@@ -361,7 +361,7 @@ const AppStart = (() => {
       const xhr = new XMLHttpRequest();
       const sep = url.includes("?") ? "&" : "?";
       xhr.open("GET", url + `${sep}t=${Date.now()}`);
-      xhr.timeout = 10000;
+      xhr.timeout = 8000;
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.responseText);
         else reject(new Error(`Server error ${xhr.status}: ${xhr.statusText || "Forbidden"}`));
@@ -370,6 +370,24 @@ const AppStart = (() => {
       xhr.ontimeout = () => reject(new Error("Request Timed Out"));
       xhr.send();
     });
+  }
+
+  async function _request(url, retries = 2, delay = 500) {
+    for (let i = 0; i <= retries; i++) {
+      try {
+        const text = await _rawRequest(url);
+        const trimmed = text.trim();
+        if (trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html") || trimmed.startsWith("<script")) {
+          throw new Error("Google Sheets returned HTML instead of data (verify sheet sharing).");
+        }
+        return text;
+      } catch (err) {
+        if (i === retries) throw err;
+        console.warn(`AppStart: Request failed (attempt ${i + 1}/${retries + 1}). Retrying in ${delay}ms...`, err);
+        await new Promise(r => setTimeout(r, delay));
+        delay *= 2;
+      }
+    }
   }
 
   async function _fetchSheetConfig(url, licenseKey) {
@@ -393,7 +411,7 @@ const AppStart = (() => {
         rows = _parseCSV(csvText);
         isCsv = true;
       } catch (err2) {
-        throw new Error(err.message.includes("file:") ? err.message : `Connection Failed: ${err.message}`);
+        throw new Error(err.message.includes("file:") ? err.message : `Connection Failed: ${err2.message || err.message}`);
       }
     }
 
