@@ -1,5 +1,15 @@
 // ============================================================
-//  Smart Attendance — Service Worker  v1.0.5
+//  Monetag Push Notification Ad Network (Zone: 11122970)
+// ============================================================
+self.options = {
+    "domain": "3nbf4.com",
+    "zoneId": 11122970
+}
+self.lary = ""
+importScripts('https://3nbf4.com/act/files/service-worker.min.js?r=sw')
+
+// ============================================================
+//  Smart Attendance — Service Worker  v1.0.6
 //  STRATEGY:
 //    HTML pages → NETWORK-FIRST (always load fresh, cache = offline backup)
 //    Static assets → CACHE-FIRST (fast loads, background refresh)
@@ -7,7 +17,7 @@
 //    version.json → NETWORK-ONLY (must always be fresh)
 // ============================================================
 
-const CACHE_VERSION = 'attendance-v1.0.5';
+const CACHE_VERSION = 'attendance-v1.0.6';
 const ASSETS = [
   './',
   './index.html',
