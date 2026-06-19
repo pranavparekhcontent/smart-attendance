@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /appstart/
+Disallow: /js/
+Disallow: /css/
+
+Sitemap: https://smart-attendance-4uq.pages.dev/sitemap.xml
