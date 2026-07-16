@@ -272,6 +272,17 @@ const AppStart = (() => {
   // ── Smart column-name keyword map ─────────────────────────
   // Each field has an array of keyword patterns to match against
   // the header text (lowercased, trimmed). Order doesn't matter.
+  const appNameLower = (APP_CONFIG.APP_NAME || "").toLowerCase().trim();
+  const defaultMakerKeywords = [];
+  if (appNameLower) {
+    defaultMakerKeywords.push(`${appNameLower} animation link`);
+    defaultMakerKeywords.push(`${appNameLower} animation`);
+    defaultMakerKeywords.push(`${appNameLower} link`);
+  }
+  defaultMakerKeywords.push("maker animation", "maker anim", "maker");
+
+  const defaultCollegeKeywords = ["college animation link", "college animation", "college anim"];
+
   const COLUMN_KEYWORDS = {
     college_name:      ["college name", "college", "institution", "inst name"],
     management_name:   ["management name", "management", "trust", "society", "mgmt name"],
@@ -281,8 +292,8 @@ const AppStart = (() => {
     management_logo:   ["management logo", "mgmt logo", "trust logo"],
     college_logo:      ["college logo", "institution logo", "inst logo"],
     output_sheet_id:   ["output sheet id", "output id", "output excel link", "output link"],
-    maker_animation:   ["maker animation", "maker anim", "maker"],
-    college_animation: ["college animation", "college anim"],
+    maker_animation:   APP_CONFIG.MAKER_ANIMATION_KEYWORDS || defaultMakerKeywords,
+    college_animation: APP_CONFIG.COLLEGE_ANIMATION_KEYWORDS || defaultCollegeKeywords,
     contact_no:        ["college contact", "contact no", "contact", "phone", "mobile"],
   };
 
@@ -547,64 +558,98 @@ const AppStart = (() => {
   }
 
 
+  function _isValidAnimationUrl(url) {
+    if (!url) return false;
+    const clean = String(url).trim().toLowerCase();
+    if (clean === "" || clean === "undefined" || clean === "null" || clean === "blank" || clean === "-") {
+      return false;
+    }
+    return /^(https?:\/\/|\.\/|data:)/i.test(clean);
+  }
+
   // ── Animation player ──────────────────────────────────────
   async function _playAnimation(url, labelText) {
-    if (!url) return;
+    if (!_isValidAnimationUrl(url)) return;
     return new Promise(resolve => {
-      _animLayer.innerHTML = "";
-      _animLayer.classList.add("as-visible");
+      try {
+        _animLayer.innerHTML = "";
+        _animLayer.classList.add("as-visible");
 
-      const label = document.createElement("div");
-      label.className = "as-anim-label";
-      label.textContent = labelText;
-      _animLayer.appendChild(label);
+        const label = document.createElement("div");
+        label.className = "as-anim-label";
+        label.textContent = labelText;
+        _animLayer.appendChild(label);
 
-      const ext = url.split(".").pop().toLowerCase().split("?")[0];
+        const ext = url.split(".").pop().toLowerCase().split("?")[0];
 
-      if (ext === "json") {
-        _loadLottie(() => {
-          if (!window.lottie) { _hideAnimLayer(resolve); return; }
-          const container = document.createElement("div");
-          container.style.cssText = "width:100%;height:100%;display:flex;align-items:center;justify-content:center;";
-          _animLayer.appendChild(container);
-          const anim = lottie.loadAnimation({
-            container, renderer: "svg", loop: false, autoplay: true, path: url,
+        if (ext === "json") {
+          _loadLottie(() => {
+            try {
+              if (!window.lottie) { _hideAnimLayer(resolve); return; }
+              const container = document.createElement("div");
+              container.style.cssText = "width:100%;height:100%;display:flex;align-items:center;justify-content:center;";
+              _animLayer.appendChild(container);
+              const anim = lottie.loadAnimation({
+                container, renderer: "svg", loop: false, autoplay: true, path: url,
+              });
+              let resolved = false;
+              const onComplete = () => {
+                if (resolved) return;
+                resolved = true;
+                _hideAnimLayer(resolve);
+              };
+              anim.addEventListener("complete", onComplete);
+              // Fallback for long Lottie
+              setTimeout(onComplete, 8000);
+            } catch (err) {
+              console.warn("Lottie setup failed:", err);
+              _hideAnimLayer(resolve);
+            }
           });
-          let resolved = false;
-          const onComplete = () => {
-            if (resolved) return;
-            resolved = true;
+        } else if (["mp4", "webm", "ogg"].includes(ext)) {
+          const video = document.createElement("video");
+          video.src = url; 
+          video.autoplay = true; 
+          video.muted = false; // SOUND ON
+          video.playsInline = true;
+          video.style.cssText = "width:100vw;height:100vh;object-fit:cover;object-position:center;";
+          
+          video.onended = () => _hideAnimLayer(resolve);
+          video.onerror = () => _hideAnimLayer(resolve);
+          
+          _animLayer.appendChild(video);
+          
+          video.play().catch(err => {
+            console.warn("Autoplay with sound blocked, trying muted...", err);
+            video.muted = true;
+            video.play().catch(err2 => {
+              console.error("Video play failed:", err2);
+              _hideAnimLayer(resolve);
+            });
+          });
+          // Safety timeout for video hang
+          setTimeout(() => _hideAnimLayer(resolve), 12000);
+        } else {
+          // GIF / image — display for 4s
+          const img = document.createElement("img");
+          img.src = url;
+          img.style.cssText = "max-width:90%;max-height:80vh;object-fit:contain;";
+          
+          img.onload = () => {
+            setTimeout(() => _hideAnimLayer(resolve), 4000);
+          };
+          img.onerror = () => {
+            console.warn("Image load failed:", url);
             _hideAnimLayer(resolve);
           };
-          anim.addEventListener("complete", onComplete);
-          // Fallback for long Lottie
-          setTimeout(onComplete, 8000);
-        });
-      } else if (["mp4", "webm", "ogg"].includes(ext)) {
-        const video = document.createElement("video");
-        video.src = url; 
-        video.autoplay = true; 
-        video.muted = false; // SOUND ON
-        video.playsInline = true;
-        video.style.cssText = "width:100vw;height:100vh;object-fit:cover;object-position:center;";
-        
-        video.onended = () => _hideAnimLayer(resolve);
-        video.onerror = () => _hideAnimLayer(resolve);
-        
-        _animLayer.appendChild(video);
-        
-        video.play().catch(err => {
-          console.warn("Autoplay with sound blocked, trying muted...", err);
-          video.muted = true;
-          video.play();
-        });
-      } else {
-        // GIF / image — display for 4s
-        const img = document.createElement("img");
-        img.src = url;
-        img.style.cssText = "max-width:90%;max-height:80vh;object-fit:contain;";
-        _animLayer.appendChild(img);
-        setTimeout(() => _hideAnimLayer(resolve), 4000);
+          
+          _animLayer.appendChild(img);
+          // Safety timeout in case onload/onerror don't fire
+          setTimeout(() => _hideAnimLayer(resolve), 4500);
+        }
+      } catch (err) {
+        console.error("Play animation error:", err);
+        _hideAnimLayer(resolve);
       }
     });
   }
@@ -704,8 +749,8 @@ const AppStart = (() => {
       const makerUrl   = _sheetConfig["maker_animation"] || "";
       const collegeUrl = _sheetConfig["college_animation"] || "";
       
-      if (makerUrl)   await _playAnimation(makerUrl, "Powered by");
-      if (collegeUrl) await _playAnimation(collegeUrl, _licenseResult.collegeName);
+      if (_isValidAnimationUrl(makerUrl))   await _playAnimation(makerUrl.trim(), "Powered by");
+      if (_isValidAnimationUrl(collegeUrl)) await _playAnimation(collegeUrl.trim(), _licenseResult.collegeName);
       
       _setPhase("ph-anim", "done", "Complete");
     } catch (err) {
