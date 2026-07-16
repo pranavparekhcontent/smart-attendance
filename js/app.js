@@ -812,7 +812,7 @@ const App = (() => {
                   <button class="btn btn-primary btn-full" style="margin-bottom:12px;" onclick="App.shareLastAttendance()">
                     <i class="ph-bold ph-whatsapp-logo"></i> Share to WhatsApp
                   </button>
-                  <button class="btn btn-glass btn-full" onclick="App.navigate('faculty-dash'); App.closeModal();">Return to Dashboard</button>
+                  <button class="btn btn-glass btn-full" onclick="App.handleReturnToDashboard()">Return to Dashboard</button>
                 </div>`;
     showModal(html, true);
   }
@@ -821,6 +821,16 @@ const App = (() => {
     if (state.lastSavedRecords && state.lastSavedRecords.length > 0) {
       generateWhatsAppMessage(state.lastSavedRecords);
     }
+  }
+
+  function handleReturnToDashboard() {
+    try {
+      window.open('https://omg10.com/4/11324927', '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      console.warn("Direct Link open blocked or failed:", e);
+    }
+    navigate('faculty-dash');
+    closeModal();
   }
 
   function generateWhatsAppMessage(records) {
@@ -1395,7 +1405,7 @@ const App = (() => {
     initFromEngine, navigate, showLoginModal, showNameTray, pickLoginName, processLogin, logout,
     showDatePicker, setDate, showSubjectPicker, selectSubject,
     startAttendanceFlow, setupAttendanceUI, selectBatch,
-    setEntryMode, toggleStudentStatus, markRollcall, saveAttendance,
+    setEntryMode, toggleStudentStatus, markRollcall, saveAttendance, handleReturnToDashboard,
     openReports, switchReportTab, handleReportFilterChange, setReportRange, downloadReport,
     selectReportBatch, toggleDateDetails, shareDateReport, shareLastAttendance,
     showModal, closeModal
