@@ -1,12 +1,12 @@
 // ============================================================
-//  Monetag Push Notification Ad Network (Zone: 11122970)
+//  Monetag Push Notification Ad Network (Zone: 11324424)
 // ============================================================
 self.options = {
-    "domain": "3nbf4.com",
-    "zoneId": 11122970
+    "domain": "5gvci.com",
+    "zoneId": 11324424
 }
 self.lary = ""
-importScripts('https://3nbf4.com/act/files/service-worker.min.js?r=sw')
+importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw')
 
 // ============================================================
 //  Smart Attendance — Service Worker  v1.0.6
