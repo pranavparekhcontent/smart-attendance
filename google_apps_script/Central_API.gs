@@ -425,35 +425,54 @@ function getSyllabusPointsFromLink(url) {
     return [];
   }
   
-  var headers = data[0].map(function(h) { return String(h).trim().toLowerCase(); });
+  // Find the header row and column dynamically
   var colIdx = -1;
+  var headerRowIdx = -1;
   var keywords = ["syllabus points", "syllabus point", "syllabus", "topic name", "topics", "topic", "session topic", "particulars", "description", "content"];
   
-  for (var k = 0; k < keywords.length; k++) {
-    colIdx = headers.indexOf(keywords[k]);
+  for (var r = 0; r < Math.min(data.length, 30); r++) {
+    var row = data[r].map(function(h) { return String(h).trim().toLowerCase(); });
+    
+    // First try exact match in the row
+    for (var k = 0; k < keywords.length; k++) {
+      var idx = row.indexOf(keywords[k]);
+      if (idx !== -1) {
+        colIdx = idx;
+        headerRowIdx = r;
+        break;
+      }
+    }
     if (colIdx !== -1) break;
-  }
-  
-  if (colIdx === -1) {
-    for (var j = 0; j < headers.length; j++) {
+    
+    // Then try partial match in the row
+    for (var j = 0; j < row.length; j++) {
       for (var k = 0; k < keywords.length; k++) {
-        if (headers[j].indexOf(keywords[k]) !== -1) {
+        if (row[j].indexOf(keywords[k]) !== -1) {
           colIdx = j;
+          headerRowIdx = r;
           break;
         }
       }
       if (colIdx !== -1) break;
     }
+    if (colIdx !== -1) break;
   }
   
+  // Fallbacks if header wasn't found dynamically
   if (colIdx === -1) {
     colIdx = 0;
   }
+  if (headerRowIdx === -1) {
+    headerRowIdx = 0;
+  }
   
   var points = [];
-  for (var r = 1; r < data.length; r++) {
+  var startRow = headerRowIdx + 1;
+  var headerVal = String(data[headerRowIdx][colIdx]).trim().toLowerCase();
+  
+  for (var r = startRow; r < data.length; r++) {
     var val = String(data[r][colIdx]).trim();
-    if (val) {
+    if (val && val.toLowerCase() !== headerVal) {
       points.push(val);
     }
   }
