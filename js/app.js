@@ -462,54 +462,107 @@ const App = (() => {
 
   function showSyllabusPicker(points) {
     return new Promise((resolve) => {
+      const pickerId = 'syl-picker-' + Date.now();
       let html = `<div class="modal-header">
-                    <div class="modal-title">Select Topic</div>
-                    <div class="modal-subtitle">Choose a syllabus point or enter a custom topic</div>
+                    <div class="modal-title">Select Topics</div>
+                    <div class="modal-subtitle">Tap to select one or more syllabus points</div>
                   </div>
-                  <div class="modal-body" style="padding: 16px; display:flex; flex-direction:column; gap:12px; max-height:400px; overflow-y:auto;">`;
+                  <div class="modal-body" style="padding: 16px 20px; max-height:50vh; overflow-y:auto;">
+                    <div id="${pickerId}" style="display:flex; flex-wrap:wrap; gap:10px; justify-content:center;">`;
 
-      // Render syllabus points
-      points.forEach((pt) => {
-        html += `<div class="subject-list-item" onclick="window._submitSyllabus('${encodeURIComponent(pt)}')"
-                      style="border-left: 4px solid var(--accent); background: linear-gradient(90deg, var(--accent-soft) 0%, transparent 100%); margin-bottom: 8px;">
-                   <div style="flex:1; font-weight:500; font-size:14px; color:var(--text-1); text-align:left;">
-                     ${escapeHtml(pt)}
-                   </div>
-                   <i class="ph-bold ph-caret-right" style="color:var(--accent); opacity:0.5;"></i>
-                 </div>`;
+      // Render syllabus chips
+      points.forEach((pt, idx) => {
+        const safeVal = escapeHtml(pt);
+        html += `<button type="button" class="syl-chip" data-idx="${idx}" data-value="${encodeURIComponent(pt)}" onclick="window._toggleSylChip(this)">
+                   <span class="syl-chip-dot"></span>
+                   <span class="syl-chip-text">${safeVal}</span>
+                 </button>`;
       });
 
-      // "Other" option
-      html += `<div class="subject-list-item" onclick="window._submitSyllabus('OTHER_CUSTOM_OPTION')"
-                    style="border-left: 4px solid var(--text-4); background: linear-gradient(90deg, rgba(255,255,255,0.02) 0%, transparent 100%); margin-bottom: 8px;">
-                 <div style="flex:1; font-weight:700; font-size:14px; color:var(--text-2); text-align:left;">
-                   ✨ Other (Enter custom topic)
-                 </div>
-                 <i class="ph-bold ph-caret-right" style="color:var(--text-4); opacity:0.5;"></i>
-               </div>`;
-
       html += `</div>
-               <div class="modal-footer" style="padding: 10px 16px 16px; gap:10px;">
+               </div>
+               <div style="padding: 0 20px 12px;">
+                 <div class="syl-custom-row" id="syl-custom-row">
+                   <button type="button" class="syl-chip syl-chip-other" onclick="window._toggleSylCustom(this)" id="syl-other-btn">
+                     <span class="syl-chip-dot" style="background:var(--warning);box-shadow:0 0 6px var(--warning);"></span>
+                     <span class="syl-chip-text">✨ Custom Topic</span>
+                   </button>
+                   <input type="text" id="syl-custom-input" class="input syl-custom-input" placeholder="Enter custom topic..." style="display:none;" autocomplete="off" />
+                 </div>
+               </div>
+               <div class="modal-footer" style="padding: 10px 20px 20px; gap:10px;">
                  <button class="btn btn-glass" style="flex:1" onclick="window._cancelSyllabus()">Cancel</button>
+                 <button class="btn btn-primary" style="flex:1.5; opacity:0.4; pointer-events:none;" id="syl-confirm-btn" onclick="window._confirmSyllabus()">
+                   <i class="ph-bold ph-check-circle" style="margin-right:6px;"></i> Confirm
+                 </button>
                </div>`;
 
-      window._submitSyllabus = (val) => {
-        delete window._submitSyllabus;
-        delete window._cancelSyllabus;
-        closeModal();
-        if (val === 'OTHER_CUSTOM_OPTION') {
-          resolve('OTHER_CUSTOM_OPTION');
+      // Toggle chip selection
+      window._toggleSylChip = (el) => {
+        el.classList.toggle('selected');
+        updateConfirmBtn();
+      };
+
+      // Toggle custom input
+      window._toggleSylCustom = (el) => {
+        el.classList.toggle('selected');
+        const input = document.getElementById('syl-custom-input');
+        if (el.classList.contains('selected')) {
+          input.style.display = 'block';
+          setTimeout(() => input.focus(), 100);
         } else {
-          resolve(decodeURIComponent(val));
+          input.style.display = 'none';
+          input.value = '';
         }
+        updateConfirmBtn();
+      };
+
+      function updateConfirmBtn() {
+        const selected = document.querySelectorAll(`#${pickerId} .syl-chip.selected`);
+        const otherBtn = document.getElementById('syl-other-btn');
+        const customVal = document.getElementById('syl-custom-input')?.value?.trim();
+        const count = selected.length + ((otherBtn?.classList.contains('selected') && customVal) ? 1 : (otherBtn?.classList.contains('selected') ? 1 : 0));
+        const btn = document.getElementById('syl-confirm-btn');
+        if (selected.length > 0 || (otherBtn?.classList.contains('selected'))) {
+          btn.style.opacity = '1';
+          btn.style.pointerEvents = 'auto';
+          btn.innerHTML = `<i class="ph-bold ph-check-circle" style="margin-right:6px;"></i> Confirm (${selected.length + (otherBtn?.classList.contains('selected') ? 1 : 0)})`;
+        } else {
+          btn.style.opacity = '0.4';
+          btn.style.pointerEvents = 'none';
+          btn.innerHTML = `<i class="ph-bold ph-check-circle" style="margin-right:6px;"></i> Confirm`;
+        }
+      }
+
+      // Confirm selection
+      window._confirmSyllabus = () => {
+        const selected = document.querySelectorAll(`#${pickerId} .syl-chip.selected`);
+        const parts = [];
+        selected.forEach(el => parts.push(decodeURIComponent(el.dataset.value)));
+        
+        const otherBtn = document.getElementById('syl-other-btn');
+        if (otherBtn?.classList.contains('selected')) {
+          const customVal = document.getElementById('syl-custom-input')?.value?.trim();
+          if (customVal) parts.push(customVal);
+        }
+
+        cleanup();
+        closeModal();
+        resolve(parts.length > 0 ? parts.join(', ') : null);
       };
 
       window._cancelSyllabus = () => {
-        delete window._submitSyllabus;
-        delete window._cancelSyllabus;
+        cleanup();
         closeModal();
         resolve(null);
       };
+
+      function cleanup() {
+        delete window._toggleSylChip;
+        delete window._toggleSylCustom;
+        delete window._confirmSyllabus;
+        delete window._cancelSyllabus;
+      }
 
       showModal(html);
     });
@@ -542,12 +595,7 @@ const App = (() => {
         // User cancelled syllabus selection
         return;
       }
-      if (choice === 'OTHER_CUSTOM_OPTION') {
-        topic = await promptTopic();
-        if (!topic) return; // User cancelled / closed
-      } else {
-        topic = choice;
-      }
+      topic = choice;
     } else {
       Toast.show('Please add syllabus in teaching plan excel', 'warning');
       topic = await promptTopic();
