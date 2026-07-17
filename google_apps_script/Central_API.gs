@@ -867,14 +867,16 @@ function syncTeachingPlan(code, teacher, sheetId) {
       if (dateRow[c] instanceof Date || Object.prototype.toString.call(dateRow[c]) === '[object Date]') {
         dateIso = Utilities.formatDate(dateRow[c], Session.getScriptTimeZone(), 'yyyy-MM-dd');
       } else {
-        var parts = dateHeader.split('-');
+        // Strip lecture suffixes like " (L2)", "(L2)", " L2" case-insensitively
+        var cleanHeader = dateHeader.replace(/\s*\(l\d+\)/i, "").replace(/\s+l\d+/i, "").trim();
+        var parts = cleanHeader.split('-');
         if (parts.length >= 2) {
-          var day = parseInt(parts[0]);
+          var day = parseInt(parts[0], 10);
           var monIdx = mos.indexOf(parts[1]);
           if (monIdx !== -1) {
             var yr = new Date().getFullYear();
             if (parts[2]) {
-              var y = parseInt(parts[2]);
+              var y = parseInt(parts[2], 10);
               yr = y < 100 ? 2000 + y : y;
             }
             var d = new Date(yr, monIdx, day);
@@ -882,7 +884,7 @@ function syncTeachingPlan(code, teacher, sheetId) {
           }
         }
         if (!dateIso) {
-          var parsed = new Date(dateHeader);
+          var parsed = new Date(cleanHeader);
           if (!isNaN(parsed.getTime())) {
             dateIso = Utilities.formatDate(parsed, Session.getScriptTimeZone(), 'yyyy-MM-dd');
           }
@@ -926,8 +928,16 @@ function syncTeachingPlan(code, teacher, sheetId) {
       for (var j = 0; j < attendanceLogs.length; j++) {
         var cleanLogTopic = cleanStr(attendanceLogs[j].topic);
         if (cleanSyllabus.indexOf(cleanLogTopic) !== -1 || cleanLogTopic.indexOf(cleanSyllabus) !== -1) {
-          ws.getRange(t.rowIndex, executedCol).setValue(attendanceLogs[j].date);
-          t.executedDate = attendanceLogs[j].date;
+          // Parse dateIso back into a true Date object so Google Sheets formats it nicely
+          var dateStr = attendanceLogs[j].date;
+          var dateParts = dateStr.split('-');
+          if (dateParts.length === 3) {
+            var dateObj = new Date(parseInt(dateParts[0], 10), parseInt(dateParts[1], 10) - 1, parseInt(dateParts[2], 10));
+            ws.getRange(t.rowIndex, executedCol).setValue(dateObj);
+          } else {
+            ws.getRange(t.rowIndex, executedCol).setValue(dateStr);
+          }
+          t.executedDate = dateStr;
           updated++;
           break;
         }
