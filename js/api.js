@@ -229,10 +229,12 @@ const API = (() => {
   /**
    * Fetch syllabus points from an external sheet link
    */
-  async function getSyllabusPoints(link) {
+  async function getSyllabusPoints(link, code) {
     if (navigator.onLine) {
       try {
-        const data = await _get('getSyllabus', { link: link });
+        const params = { link: link };
+        if (code) params.code = code;
+        const data = await _get('getSyllabus', params);
         return data;
       } catch (e) {
         console.warn('API.getSyllabusPoints network fail:', e.message);

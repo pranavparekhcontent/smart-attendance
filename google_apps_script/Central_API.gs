@@ -44,7 +44,7 @@ function doGet(e) {
         result = getAttendance(e.parameter.code, e.parameter.year, e.parameter.date, e.parameter.outputSheetId, sheetId); 
         break;
       case 'getSyllabus':
-        result = getSyllabus(e.parameter.link, sheetId);
+        result = getSyllabus(e.parameter.link, e.parameter.code, sheetId);
         break;
       case 'getConfig':
       case 'getAllData': 
@@ -170,6 +170,14 @@ function getSubjects(teacher, sheetId) {
       res.push(subObj);
     }
   }
+  // Fallback: fill empty teachingPlanLink from master config sheet
+  var globalLink = '';
+  for (var i = 0; i < res.length; i++) {
+    if (!res[i].teachingPlanLink) {
+      if (!globalLink) globalLink = getGlobalTeachingPlanLink(sheetId);
+      if (globalLink) res[i].teachingPlanLink = globalLink;
+    }
+  }
   return { success: true, subjects: res };
 }
 
@@ -227,6 +235,14 @@ function getAllData(sheetId) {
         };
         subObj.teachingPlanLink = (teachingPlanIdx !== -1) ? String(data[i][teachingPlanIdx]).trim() : '';
         subs.push(subObj);
+      }
+    }
+    // Fallback: fill empty teachingPlanLink from master config sheet
+    var globalLink = '';
+    for (var i = 0; i < subs.length; i++) {
+      if (!subs[i].teachingPlanLink) {
+        if (!globalLink) globalLink = getGlobalTeachingPlanLink(sheetId);
+        if (globalLink) subs[i].teachingPlanLink = globalLink;
       }
     }
     var cs = ss.getSheetByName('client sheet') || ss.getSheetByName('subjects');
@@ -362,6 +378,43 @@ function getTargetSheetIds(code, sheetId) {
   if (!outputSheetId) outputSheetId = getOutputSheetId(sheetId);
 
   return { teachingPlanId: teachingPlanId, outputSheetId: outputSheetId };
+}
+
+/**
+ * Lookup the global teaching plan link from master config sheet.
+ * Used as fallback when a college's subjects sheet has no teaching plan column.
+ */
+function getGlobalTeachingPlanLink(sheetId) {
+  try {
+    var MASTER_CONFIG_SHEET_ID = "1p3WoC2s-YYqn9ekqkQ72banxAAd-ujlDoFYpv4fkXmk";
+    var masterSs = SpreadsheetApp.openById(MASTER_CONFIG_SHEET_ID);
+    var masterWs = masterSs.getSheetByName("smart attendance client sheet") || masterSs.getSheets()[0];
+    if (!masterWs) return '';
+
+    var data = masterWs.getDataRange().getValues();
+    var headers = data[2] || data[0];
+    var inputCol = -1, tpCol = -1;
+
+    for (var c = 0; c < headers.length; c++) {
+      var h = String(headers[c]).toLowerCase().trim();
+      if (h.indexOf('input sheet id') !== -1 || h.indexOf('input link') !== -1) inputCol = c;
+      if (h.indexOf('teaching plan link') !== -1 || h.indexOf('teaching plan') !== -1) tpCol = c;
+    }
+
+    if (inputCol === -1) inputCol = 4;
+    if (tpCol === -1) tpCol = 6;
+
+    for (var r = 3; r < data.length; r++) {
+      var rowInputId = String(data[r][inputCol] || '').trim();
+      if (rowInputId === sheetId || (sheetId && rowInputId.indexOf(sheetId) !== -1) || (rowInputId && sheetId.indexOf(rowInputId) !== -1)) {
+        var tpVal = (tpCol !== -1 && tpCol < data[r].length) ? String(data[r][tpCol] || '').trim() : '';
+        return tpVal || '';
+      }
+    }
+  } catch(e) {
+    Logger.log("Error getting global teaching plan link: " + e.message);
+  }
+  return '';
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1112,19 +1165,19 @@ function extractSpreadsheetId(url) {
   return match ? match[1] : null;
 }
 
-function getSyllabus(link, sheetId) {
+function getSyllabus(link, code, sheetId) {
   try {
     if (!link) {
       return { success: false, error: 'No link provided' };
     }
-    var points = getSyllabusPointsFromLink(link);
+    var points = getSyllabusPointsFromLink(link, code);
     return { success: true, points: points };
   } catch (err) {
     return { success: false, error: err.message };
   }
 }
 
-function getSyllabusPointsFromLink(url) {
+function getSyllabusPointsFromLink(url, code) {
   var id = extractSpreadsheetId(url);
   if (!id) {
     throw new Error("Invalid Google Sheets link. Please check teaching plan link.");
@@ -1139,11 +1192,25 @@ function getSyllabusPointsFromLink(url) {
   var sheets = ss.getSheets();
   var sheet = null;
   
-  for (var i = 0; i < sheets.length; i++) {
-    var name = sheets[i].getName().toLowerCase();
-    if (name.indexOf("syllabus") !== -1 || name.indexOf("teaching plan") !== -1 || name.indexOf("plan") !== -1) {
-      sheet = sheets[i];
-      break;
+  // Priority 1: Match by subject code (e.g. "BP101T")
+  if (code) {
+    for (var i = 0; i < sheets.length; i++) {
+      var name = sheets[i].getName().trim();
+      if (name.toLowerCase() === code.toLowerCase()) {
+        sheet = sheets[i];
+        break;
+      }
+    }
+  }
+  
+  // Priority 2: Match by keyword in sheet name
+  if (!sheet) {
+    for (var i = 0; i < sheets.length; i++) {
+      var name = sheets[i].getName().toLowerCase();
+      if (name.indexOf("syllabus") !== -1 || name.indexOf("teaching plan") !== -1 || name.indexOf("plan") !== -1) {
+        sheet = sheets[i];
+        break;
+      }
     }
   }
   if (!sheet) {

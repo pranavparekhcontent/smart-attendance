@@ -525,7 +525,7 @@ const App = (() => {
     if (state.selectedSubject.teachingPlanLink) {
       showSpinner('Fetching Syllabus...', 'ph-book-open');
       try {
-        const res = await API.getSyllabusPoints(state.selectedSubject.teachingPlanLink);
+        const res = await API.getSyllabusPoints(state.selectedSubject.teachingPlanLink, state.selectedSubject.code);
         if (res && res.success && res.points && res.points.length > 0) {
           syllabusPoints = res.points;
           hasSyllabusPoints = true;
