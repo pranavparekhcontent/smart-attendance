@@ -1177,6 +1177,18 @@ function getSyllabus(link, code, sheetId) {
   }
 }
 
+function looksLikeSubjectCode(name) {
+  if (!name) return false;
+  var val = name.trim().toLowerCase().replace(/\s+/g, "");
+  if (val.indexOf("sheet") === 0) return false;
+  if (val.indexOf("lecture") === 0) return false;
+  if (val.indexOf("unit") === 0) return false;
+  if (val.indexOf("chap") === 0) return false;
+  var hasLetters = /[a-z]/.test(val);
+  var hasNumbers = /[0-9]/.test(val);
+  return hasLetters && hasNumbers && val.length >= 3;
+}
+
 function getSyllabusPointsFromLink(url, code) {
   var id = extractSpreadsheetId(url);
   if (!id) {
@@ -1203,18 +1215,29 @@ function getSyllabusPointsFromLink(url, code) {
     }
   }
   
-  // Priority 2: Match by keyword in sheet name
+  // Priority 2: Match by keyword in sheet name (skip if it looks like a different subject code)
   if (!sheet) {
     for (var i = 0; i < sheets.length; i++) {
-      var name = sheets[i].getName().toLowerCase();
-      if (name.indexOf("syllabus") !== -1 || name.indexOf("teaching plan") !== -1 || name.indexOf("plan") !== -1) {
+      var name = sheets[i].getName().trim();
+      var nameLower = name.toLowerCase();
+      if (code && looksLikeSubjectCode(name) && nameLower !== code.toLowerCase()) {
+        continue;
+      }
+      if (nameLower.indexOf("syllabus") !== -1 || nameLower.indexOf("teaching plan") !== -1 || nameLower.indexOf("plan") !== -1) {
         sheet = sheets[i];
         break;
       }
     }
   }
-  if (!sheet) {
-    sheet = sheets[0];
+  
+  // Priority 3: Fall back to first sheet (skip if it looks like a different subject code)
+  if (!sheet && sheets[0]) {
+    var firstSheetName = sheets[0].getName().trim();
+    if (code && looksLikeSubjectCode(firstSheetName) && firstSheetName.toLowerCase() !== code.toLowerCase()) {
+      sheet = null;
+    } else {
+      sheet = sheets[0];
+    }
   }
   
   if (!sheet) {
