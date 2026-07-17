@@ -467,8 +467,16 @@ const App = (() => {
                     <div class="modal-title">Select Topics</div>
                     <div class="modal-subtitle">Tap to select one or more syllabus points</div>
                   </div>
-                  <div class="modal-body" style="padding: 16px 20px; max-height:50vh; overflow-y:auto;">
-                    <div id="${pickerId}" style="display:flex; flex-wrap:wrap; gap:10px; justify-content:center;">`;
+                  <div class="modal-body" style="padding: 16px 20px; max-height:50vh; overflow-y:auto; display:flex; flex-direction:column; gap:12px;">`;
+
+      // Search input if there are more than 8 points
+      if (points.length > 8) {
+        html += `<div class="input-group" style="margin-bottom: 4px;">
+                   <input type="text" id="syl-search-input" class="input" placeholder="🔍 Search syllabus points..." style="font-size: 13px; padding: 8px 12px; border-radius:8px;" autocomplete="off" oninput="window._filterSylChips(this.value)" />
+                 </div>`;
+      }
+
+      html += `<div id="${pickerId}" style="display:flex; flex-wrap:wrap; gap:10px; justify-content:center;">`;
 
       // Render syllabus chips
       points.forEach((pt, idx) => {
@@ -487,7 +495,7 @@ const App = (() => {
                      <span class="syl-chip-dot" style="background:var(--warning);box-shadow:0 0 6px var(--warning);"></span>
                      <span class="syl-chip-text">✨ Custom Topic</span>
                    </button>
-                   <input type="text" id="syl-custom-input" class="input syl-custom-input" placeholder="Enter custom topic..." style="display:none;" autocomplete="off" />
+                   <input type="text" id="syl-custom-input" class="input syl-custom-input" placeholder="Enter custom topic..." style="display:none;" autocomplete="off" oninput="window._updateSylConfirm()" />
                  </div>
                </div>
                <div class="modal-footer" style="padding: 10px 20px 20px; gap:10px;">
@@ -496,6 +504,20 @@ const App = (() => {
                    <i class="ph-bold ph-check-circle" style="margin-right:6px;"></i> Confirm
                  </button>
                </div>`;
+
+      // Filter chips
+      window._filterSylChips = (query) => {
+        const q = query.toLowerCase().trim();
+        const chips = document.querySelectorAll(`#${pickerId} .syl-chip`);
+        chips.forEach(chip => {
+          const text = chip.querySelector('.syl-chip-text').textContent.toLowerCase();
+          if (text.includes(q)) {
+            chip.style.display = 'inline-flex';
+          } else {
+            chip.style.display = 'none';
+          }
+        });
+      };
 
       // Toggle chip selection
       window._toggleSylChip = (el) => {
@@ -517,20 +539,34 @@ const App = (() => {
         updateConfirmBtn();
       };
 
+      // Public handle to update confirm button from inline event listener
+      window._updateSylConfirm = () => {
+        updateConfirmBtn();
+      };
+
       function updateConfirmBtn() {
         const selected = document.querySelectorAll(`#${pickerId} .syl-chip.selected`);
         const otherBtn = document.getElementById('syl-other-btn');
         const customVal = document.getElementById('syl-custom-input')?.value?.trim();
-        const count = selected.length + ((otherBtn?.classList.contains('selected') && customVal) ? 1 : (otherBtn?.classList.contains('selected') ? 1 : 0));
+        const customSelected = otherBtn?.classList.contains('selected') && customVal;
+        const totalSelected = selected.length + (customSelected ? 1 : 0);
+        
         const btn = document.getElementById('syl-confirm-btn');
-        if (selected.length > 0 || (otherBtn?.classList.contains('selected'))) {
+        if (totalSelected > 0) {
           btn.style.opacity = '1';
           btn.style.pointerEvents = 'auto';
-          btn.innerHTML = `<i class="ph-bold ph-check-circle" style="margin-right:6px;"></i> Confirm (${selected.length + (otherBtn?.classList.contains('selected') ? 1 : 0)})`;
+          btn.innerHTML = `<i class="ph-bold ph-check-circle" style="margin-right:6px;"></i> Confirm (${totalSelected})`;
         } else {
-          btn.style.opacity = '0.4';
-          btn.style.pointerEvents = 'none';
-          btn.innerHTML = `<i class="ph-bold ph-check-circle" style="margin-right:6px;"></i> Confirm`;
+          // If custom button is selected but no text entered yet, let them confirm ONLY if they have regular chips selected. Otherwise disable confirm.
+          if (selected.length > 0) {
+            btn.style.opacity = '1';
+            btn.style.pointerEvents = 'auto';
+            btn.innerHTML = `<i class="ph-bold ph-check-circle" style="margin-right:6px;"></i> Confirm (${selected.length})`;
+          } else {
+            btn.style.opacity = '0.4';
+            btn.style.pointerEvents = 'none';
+            btn.innerHTML = `<i class="ph-bold ph-check-circle" style="margin-right:6px;"></i> Confirm`;
+          }
         }
       }
 
