@@ -364,29 +364,11 @@
     AppStart.init();
   </script>
 
-  <!-- Service Worker Registration + Mandatory Update -->
+  <!-- Service Worker Registration -->
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').then(reg => {
-        // Check for updates every 60 seconds
-        setInterval(() => reg.update(), 60000);
-        reg.addEventListener('updatefound', () => {
-          const newWorker = reg.installing;
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'activated' && navigator.serviceWorker.controller) {
-              // New version detected — mandatory reload
-              window.location.reload(true);
-            }
-          });
-        });
-      }).catch(err => console.warn('SW registration failed:', err));
-
-      // If the controlling SW changes (another tab updated), reload immediately
-      let swHadController = !!navigator.serviceWorker.controller;
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (swHadController) window.location.reload(true);
-        swHadController = true;
-      });
+      navigator.serviceWorker.register('./sw.js')
+        .catch(err => console.warn('SW registration failed:', err));
     }
   </script>
   <script>
