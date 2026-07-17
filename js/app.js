@@ -476,7 +476,7 @@ const App = (() => {
                  </div>`;
       }
 
-      html += `<div id="${pickerId}" style="display:flex; flex-wrap:wrap; gap:10px; justify-content:center;">`;
+      html += `<div id="${pickerId}" style="display:flex; flex-direction:column; gap:10px; width:100%;">`;
 
       // Render syllabus chips
       points.forEach((pt, idx) => {
