@@ -656,8 +656,8 @@ const AppStart = (() => {
 
 
   function _hideAnimLayer(resolve) {
-    // Keep opaque to hide the underlying tick status window
-    setTimeout(resolve, 500);
+    // Quick transition to next phase
+    setTimeout(resolve, 150);
   }
 
   function _loadLottie(cb) {
@@ -673,7 +673,7 @@ const AppStart = (() => {
   async function _runPhases() {
     // Phase 0: Environment Detection
     _setPhase("ph-env", "active", "Scanning…");
-    await _sleep(300);
+    await _sleep(100);
     const w = window.innerWidth, h = window.innerHeight;
     const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent);
     const orientation = w > h ? "Landscape" : "Portrait";
@@ -682,7 +682,7 @@ const AppStart = (() => {
 
     // Phase 1: License (already validated)
     _setPhase("ph-license", "active", "Checking…");
-    await _sleep(200);
+    await _sleep(100);
     _setPhase("ph-license", "done", _licenseResult.collegeName);
 
     // Phase 2: Fetch GSheet Config (CRITICAL: Must happen before animations)
@@ -758,7 +758,24 @@ const AppStart = (() => {
       console.warn("AppStart: animation failed →", err);
     }
 
-    // 🏁 Sync Tracks
+    // 🏁 Sync Tracks — show loading state if data is still in-flight
+    let dataReady = false;
+    dataPromise.then(() => { dataReady = true; }).catch(() => { dataReady = true; });
+
+    if (!dataReady) {
+      // Animations finished before data — show a subtle "finishing up" indicator
+      _setPhase("ph-data", "active", "Syncing data…");
+      // Make overlay visible again with a compact loading state
+      if (_animLayer) _animLayer.classList.remove("as-visible");
+      _overlay.style.display = "";
+      const progressCard = _overlay.querySelector(".as-progress-card");
+      if (progressCard) {
+        progressCard.style.animation = "none";
+        progressCard.offsetHeight; // force reflow
+        progressCard.style.animation = "modalCenterIn 0.3s ease forwards";
+      }
+    }
+
     try {
       const fetchedData = await dataPromise;
       _setPhase("ph-data", "done", `${Object.keys(fetchedData).length} source(s) ready`);
@@ -780,8 +797,8 @@ const AppStart = (() => {
       document.dispatchEvent(new CustomEvent("appstart:complete", { detail: resultPayload }));
       if (typeof APP_CONFIG.onComplete === "function") APP_CONFIG.onComplete(resultPayload);
 
-      // Final Cleanup
-      await _sleep(500); // Wait a moment so user can see completion
+      // Final Cleanup — quick exit, no unnecessary delay
+      await _sleep(200);
       _overlay.remove();
       _animLayer.remove();
     } catch (err) {
