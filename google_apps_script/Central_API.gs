@@ -631,11 +631,37 @@ function getTeachingPlan(code, teacher, sheetId) {
       } catch(e) {}
     }
     var str = String(val).trim();
+    
+    // 1. If it's already yyyy-MM-dd
     var ymdRegex = /^\d{4}-\d{2}-\d{2}$/;
-    var dmyRegex = /^\d{1,2}-[A-Za-z]{3}-\d{2,4}$/;
-    if (ymdRegex.test(str) || dmyRegex.test(str)) {
+    if (ymdRegex.test(str)) {
       return str;
     }
+    
+    // 2. Parse DD/MM/YY or DD/MM/YYYY or DD-MM-YYYY or DD.MM.YY format (standard Indian/British formats used by faculty)
+    var slashRegex = /^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/;
+    var match = str.match(slashRegex);
+    if (match) {
+      var d = parseInt(match[1], 10);
+      var m = parseInt(match[2], 10);
+      var y = parseInt(match[3], 10);
+      if (y < 100) {
+        y += 2000;
+      }
+      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        try {
+          var dateObj = new Date(y, m - 1, d);
+          return Utilities.formatDate(dateObj, timeZone, 'yyyy-MM-dd');
+        } catch(e) {}
+      }
+    }
+    
+    // 3. Fallback: DD-MMM-YY (e.g. 13-Jul-26) or other standard patterns
+    var dmyRegex = /^\d{1,2}-[A-Za-z]{3}-\d{2,4}$/;
+    if (dmyRegex.test(str)) {
+      return str;
+    }
+    
     try {
       var parsed = new Date(str);
       if (!isNaN(parsed.getTime())) {
