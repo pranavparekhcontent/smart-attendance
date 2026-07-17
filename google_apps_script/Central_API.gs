@@ -25,6 +25,7 @@ function doGet(e) {
       case 'getStudents': result = getStudents(e.parameter.sheet, e.parameter.batch, sheetId); break;
       case 'getAttendanceLimit': result = getAttendanceLimit(sheetId); break;
       case 'getAttendance': result = getAttendance(e.parameter.code, e.parameter.year, e.parameter.date, e.parameter.outputSheetId, sheetId); break;
+      case 'getSyllabus': result = getSyllabus(e.parameter.link, sheetId); break;
       case 'getConfig':
       case 'getAllData': result = getAllData(sheetId); break;
       default: result = { error: 'Unknown action: ' + action };
@@ -76,10 +77,14 @@ function getSubjects(teacher, sheetId) {
   var ss = _getSpreadsheet(sheetId), ws = ss.getSheetByName('subjects');
   if (!ws) return { success: false };
   var data = ws.getDataRange().getValues(), res = [];
+  var headers = data[0].map(function(h) { return String(h).trim().toLowerCase(); });
+  var teachingPlanIdx = headers.indexOf('teaching plan link');
   for (var i = 1; i < data.length; i++) {
     var fs = String(data[i][6]).toLowerCase().split(',').map(function(x){return x.trim()});
     if (fs.indexOf(teacher.toLowerCase()) !== -1) {
-      res.push({ code: String(data[i][0]).trim(), name: String(data[i][1]).trim(), year: String(data[i][2]).trim(), program: String(data[i][3]).trim(), semester: String(data[i][4]).trim(), type: String(data[i][5]).trim() });
+      var subObj = { code: String(data[i][0]).trim(), name: String(data[i][1]).trim(), year: String(data[i][2]).trim(), program: String(data[i][3]).trim(), semester: String(data[i][4]).trim(), type: String(data[i][5]).trim() };
+      subObj.teachingPlanLink = (teachingPlanIdx !== -1) ? String(data[i][teachingPlanIdx]).trim() : '';
+      res.push(subObj);
     }
   }
   return { success: true, subjects: res };
@@ -310,7 +315,23 @@ function getAllData(sheetId) {
   var ss = _getSpreadsheet(sheetId), ws = ss.getSheetByName('subjects'), subs = [], config = { collegeName: '', managementName: '' };
   if (ws) {
     var data = ws.getDataRange().getValues();
-    for (var i = 1; i < data.length; i++) { if (String(data[i][0]).trim()) subs.push({ code: String(data[i][0]).trim(), name: String(data[i][1]).trim(), year: String(data[i][2]).trim(), program: String(data[i][3]).trim(), semester: String(data[i][4]).trim(), type: String(data[i][5]).trim(), faculty: String(data[i][6]).trim() }); }
+    var headers = data[0].map(function(h) { return String(h).trim().toLowerCase(); });
+    var teachingPlanIdx = headers.indexOf('teaching plan link');
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim()) {
+        var subObj = {
+          code: String(data[i][0]).trim(),
+          name: String(data[i][1]).trim(),
+          year: String(data[i][2]).trim(),
+          program: String(data[i][3]).trim(),
+          semester: String(data[i][4]).trim(),
+          type: String(data[i][5]).trim(),
+          faculty: String(data[i][6]).trim()
+        };
+        subObj.teachingPlanLink = (teachingPlanIdx !== -1) ? String(data[i][teachingPlanIdx]).trim() : '';
+        subs.push(subObj);
+      }
+    }
     var cs = ss.getSheetByName('client sheet') || ss.getSheetByName('subjects');
     if (cs) {
       var cd = cs.getDataRange().getValues(), keys = ['college name', 'management name'];
@@ -346,4 +367,95 @@ function getOutputSheetId(sheetId) {
     }
   }
   return '';
+}
+
+function getSyllabus(link, sheetId) {
+  try {
+    if (!link) {
+      return { success: false, error: 'No link provided' };
+    }
+    var points = getSyllabusPointsFromLink(link);
+    return { success: true, points: points };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+function extractSpreadsheetId(url) {
+  if (!url) return null;
+  if (url.indexOf('docs.google.com') === -1) {
+    return url.trim(); // Assume it's already an ID
+  }
+  var match = url.match(/\/d\/([a-zA-Z0-9\-_]+)/);
+  return match ? match[1] : null;
+}
+
+function getSyllabusPointsFromLink(url) {
+  var id = extractSpreadsheetId(url);
+  if (!id) {
+    throw new Error("Invalid Google Sheets link. Please check teaching plan link.");
+  }
+  var ss;
+  try {
+    ss = SpreadsheetApp.openById(id);
+  } catch (e) {
+    throw new Error("Cannot access spreadsheet. Please make sure the link is correct and accessible.");
+  }
+  
+  var sheets = ss.getSheets();
+  var sheet = null;
+  
+  for (var i = 0; i < sheets.length; i++) {
+    var name = sheets[i].getName().toLowerCase();
+    if (name.indexOf("syllabus") !== -1 || name.indexOf("teaching plan") !== -1 || name.indexOf("plan") !== -1) {
+      sheet = sheets[i];
+      break;
+    }
+  }
+  if (!sheet) {
+    sheet = sheets[0];
+  }
+  
+  if (!sheet) {
+    return [];
+  }
+  
+  var data = sheet.getDataRange().getValues();
+  if (data.length <= 1) {
+    return [];
+  }
+  
+  var headers = data[0].map(function(h) { return String(h).trim().toLowerCase(); });
+  var colIdx = -1;
+  var keywords = ["syllabus points", "syllabus point", "syllabus", "topic name", "topics", "topic", "session topic", "particulars", "description", "content"];
+  
+  for (var k = 0; k < keywords.length; k++) {
+    colIdx = headers.indexOf(keywords[k]);
+    if (colIdx !== -1) break;
+  }
+  
+  if (colIdx === -1) {
+    for (var j = 0; j < headers.length; j++) {
+      for (var k = 0; k < keywords.length; k++) {
+        if (headers[j].indexOf(keywords[k]) !== -1) {
+          colIdx = j;
+          break;
+        }
+      }
+      if (colIdx !== -1) break;
+    }
+  }
+  
+  if (colIdx === -1) {
+    colIdx = 0;
+  }
+  
+  var points = [];
+  for (var r = 1; r < data.length; r++) {
+    var val = String(data[r][colIdx]).trim();
+    if (val) {
+      points.push(val);
+    }
+  }
+  return points;
 }

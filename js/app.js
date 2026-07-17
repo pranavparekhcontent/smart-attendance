@@ -450,10 +450,110 @@ const App = (() => {
     });
   }
 
+  function escapeHtml(str) {
+    return str ? String(str).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    }[c])) : "";
+  }
+
+  function showSyllabusPicker(points) {
+    return new Promise((resolve) => {
+      let html = `<div class="modal-header">
+                    <div class="modal-title">Select Topic</div>
+                    <div class="modal-subtitle">Choose a syllabus point or enter a custom topic</div>
+                  </div>
+                  <div class="modal-body" style="padding: 16px; display:flex; flex-direction:column; gap:12px; max-height:400px; overflow-y:auto;">`;
+
+      // Render syllabus points
+      points.forEach((pt) => {
+        html += `<div class="subject-list-item" onclick="window._submitSyllabus('${encodeURIComponent(pt)}')"
+                      style="border-left: 4px solid var(--accent); background: linear-gradient(90deg, var(--accent-soft) 0%, transparent 100%); margin-bottom: 8px;">
+                   <div style="flex:1; font-weight:500; font-size:14px; color:var(--text-1); text-align:left;">
+                     ${escapeHtml(pt)}
+                   </div>
+                   <i class="ph-bold ph-caret-right" style="color:var(--accent); opacity:0.5;"></i>
+                 </div>`;
+      });
+
+      // "Other" option
+      html += `<div class="subject-list-item" onclick="window._submitSyllabus('OTHER_CUSTOM_OPTION')"
+                    style="border-left: 4px solid var(--text-4); background: linear-gradient(90deg, rgba(255,255,255,0.02) 0%, transparent 100%); margin-bottom: 8px;">
+                 <div style="flex:1; font-weight:700; font-size:14px; color:var(--text-2); text-align:left;">
+                   ✨ Other (Enter custom topic)
+                 </div>
+                 <i class="ph-bold ph-caret-right" style="color:var(--text-4); opacity:0.5;"></i>
+               </div>`;
+
+      html += `</div>
+               <div class="modal-footer" style="padding: 10px 16px 16px; gap:10px;">
+                 <button class="btn btn-glass" style="flex:1" onclick="window._cancelSyllabus()">Cancel</button>
+               </div>`;
+
+      window._submitSyllabus = (val) => {
+        delete window._submitSyllabus;
+        delete window._cancelSyllabus;
+        closeModal();
+        if (val === 'OTHER_CUSTOM_OPTION') {
+          resolve('OTHER_CUSTOM_OPTION');
+        } else {
+          resolve(decodeURIComponent(val));
+        }
+      };
+
+      window._cancelSyllabus = () => {
+        delete window._submitSyllabus;
+        delete window._cancelSyllabus;
+        closeModal();
+        resolve(null);
+      };
+
+      showModal(html);
+    });
+  }
+
   async function startAttendanceFlow() {
     if (!state.selectedSubject) return Toast.show('Please select a subject first', 'warning');
     
-    const topic = await promptTopic();
+    let topic = '';
+    let hasSyllabusPoints = false;
+    let syllabusPoints = [];
+
+    if (state.selectedSubject.teachingPlanLink) {
+      showSpinner('Fetching Syllabus...', 'ph-book-open');
+      try {
+        const res = await API.getSyllabusPoints(state.selectedSubject.teachingPlanLink);
+        if (res && res.success && res.points && res.points.length > 0) {
+          syllabusPoints = res.points;
+          hasSyllabusPoints = true;
+        }
+      } catch (e) {
+        console.warn('Error fetching syllabus points:', e);
+      }
+      hideSpinner();
+    }
+
+    if (hasSyllabusPoints) {
+      const choice = await showSyllabusPicker(syllabusPoints);
+      if (choice === null) {
+        // User cancelled syllabus selection
+        return;
+      }
+      if (choice === 'OTHER_CUSTOM_OPTION') {
+        topic = await promptTopic();
+        if (!topic) return; // User cancelled / closed
+      } else {
+        topic = choice;
+      }
+    } else {
+      Toast.show('Please add syllabus in teaching plan excel', 'warning');
+      topic = await promptTopic();
+      if (!topic) return;
+    }
+
     state.sessionTopic = topic;
     
     showSpinner('Fetching Students...', 'ph-users-three');
@@ -1464,6 +1564,7 @@ const App = (() => {
   return {
     initFromEngine, navigate, showLoginModal, showNameTray, pickLoginName, processLogin, logout,
     showDatePicker, setDate, showSubjectPicker, selectSubject,
+    showSyllabusPicker,
     startAttendanceFlow, setupAttendanceUI, selectBatch,
     setEntryMode, toggleStudentStatus, markRollcall, saveAttendance, handleReturnToDashboard,
     openReports, switchReportTab, handleReportFilterChange, setReportRange, downloadReport,

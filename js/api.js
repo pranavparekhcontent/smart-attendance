@@ -227,6 +227,21 @@ const API = (() => {
   }
 
   /**
+   * Fetch syllabus points from an external sheet link
+   */
+  async function getSyllabusPoints(link) {
+    if (navigator.onLine) {
+      try {
+        const data = await _get('getSyllabus', { link: link });
+        return data;
+      } catch (e) {
+        console.warn('API.getSyllabusPoints network fail:', e.message);
+      }
+    }
+    return { success: false, error: 'Offline' };
+  }
+
+  /**
    * Get students for a year sheet
    */
   async function getStudents(sheetName, batch) {
@@ -333,6 +348,7 @@ const API = (() => {
     getAllData,
     getAllDataFromUrl,
     getConfig,
+    getSyllabusPoints,
     getStudents,
     getAttendance,
     saveAttendance,
