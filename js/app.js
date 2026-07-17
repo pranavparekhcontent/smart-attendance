@@ -460,7 +460,7 @@ const App = (() => {
     }[c])) : "";
   }
 
-  function showSyllabusPicker(points) {
+  function showSyllabusPicker(points, taughtTopics = new Set()) {
     return new Promise((resolve) => {
       const pickerId = 'syl-picker-' + Date.now();
       let html = `<div class="modal-header">
@@ -481,9 +481,12 @@ const App = (() => {
       // Render syllabus chips
       points.forEach((pt, idx) => {
         const safeVal = escapeHtml(pt);
-        html += `<button type="button" class="syl-chip" data-idx="${idx}" data-value="${encodeURIComponent(pt)}" onclick="window._toggleSylChip(this)">
+        const ptLower = pt.trim().toLowerCase();
+        const isTaught = taughtTopics.has(ptLower);
+        html += `<button type="button" class="syl-chip ${isTaught ? 'taught' : ''}" data-idx="${idx}" data-value="${encodeURIComponent(pt)}" onclick="window._toggleSylChip(this)">
                    <span class="syl-chip-dot"></span>
-                   <span class="syl-chip-text">${safeVal}</span>
+                   <span class="syl-chip-text" style="flex:1;">${safeVal}</span>
+                   ${isTaught ? `<span class="syl-chip-badge"><i class="ph-bold ph-check" style="margin-right:2px;"></i> Taught</span>` : ''}
                  </button>`;
       });
 
@@ -610,23 +613,41 @@ const App = (() => {
     let topic = '';
     let hasSyllabusPoints = false;
     let syllabusPoints = [];
+    const taughtTopics = new Set();
 
     if (state.selectedSubject.teachingPlanLink) {
-      showSpinner('Fetching Syllabus...', 'ph-book-open');
+      showSpinner('Fetching Syllabus & History...', 'ph-book-open');
       try {
-        const res = await API.getSyllabusPoints(state.selectedSubject.teachingPlanLink, state.selectedSubject.code);
+        const [res, attRes] = await Promise.all([
+          API.getSyllabusPoints(state.selectedSubject.teachingPlanLink, state.selectedSubject.code),
+          API.getAttendance(state.selectedSubject.code, state.selectedSubject.year, null, state.selectedSubject.outputSheetId).catch(() => ({ success: false }))
+        ]);
+
         if (res && res.success && res.points && res.points.length > 0) {
           syllabusPoints = res.points;
           hasSyllabusPoints = true;
         }
+
+        if (attRes && attRes.success && attRes.records) {
+          attRes.records.forEach(rec => {
+            if (rec.topic && rec.topic.trim()) {
+              const fullTopic = rec.topic.trim().toLowerCase();
+              taughtTopics.add(fullTopic);
+              // Also split by commas in case multiple topics were taught together in one session
+              rec.topic.split(',').forEach(part => {
+                taughtTopics.add(part.trim().toLowerCase());
+              });
+            }
+          });
+        }
       } catch (e) {
-        console.warn('Error fetching syllabus points:', e);
+        console.warn('Error fetching syllabus points / history:', e);
       }
       hideSpinner();
     }
 
     if (hasSyllabusPoints) {
-      const choice = await showSyllabusPicker(syllabusPoints);
+      const choice = await showSyllabusPicker(syllabusPoints, taughtTopics);
       if (choice === null) {
         // User cancelled syllabus selection
         return;
