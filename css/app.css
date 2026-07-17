@@ -696,21 +696,22 @@ select.input {
 
 /* Taught state */
 .syl-chip.taught {
-  border-style: dashed;
-  border-color: rgba(255,255,255,0.05);
-  background: linear-gradient(135deg, rgba(255,255,255,0.02) 0%, transparent 100%);
-  opacity: 0.6;
+  border-style: solid;
+  border-color: rgba(255,255,255,0.08);
+  background: linear-gradient(135deg, rgba(30,144,255,0.05) 0%, rgba(255,255,255,0.01) 100%);
+  opacity: 1;
 }
 
 .syl-chip.taught .syl-chip-dot {
-  background: var(--text-4);
-  box-shadow: none;
+  background: var(--success);
+  box-shadow: 0 0 8px var(--success-border);
 }
 
 .syl-chip.taught.selected {
-  opacity: 1;
-  border-style: solid;
   border-color: var(--accent);
+  background: linear-gradient(135deg, rgba(30,144,255,0.2) 0%, rgba(30,144,255,0.08) 100%);
+  color: var(--text-1);
+  box-shadow: 0 0 16px rgba(30,144,255,0.25), inset 0 0 12px rgba(30,144,255,0.08);
 }
 
 .syl-chip.taught.selected .syl-chip-dot {
@@ -733,9 +734,24 @@ select.input {
   letter-spacing: 0.3px;
 }
 
+/* Green carved styling for taught badge */
+.syl-chip.taught .syl-chip-badge {
+  background: var(--success-bg);
+  color: var(--success);
+  border: 1px solid var(--success-border);
+  box-shadow: inset 1px 1px 3px rgba(0,200,100,0.1);
+}
+
 .syl-chip.selected .syl-chip-badge {
   background: rgba(30,144,255,0.15);
   color: var(--accent);
+}
+
+.syl-chip.taught.selected .syl-chip-badge {
+  background: rgba(30,144,255,0.15);
+  color: var(--accent);
+  border-color: rgba(30,144,255,0.3);
+  box-shadow: none;
 }
 
 /* Other / Custom chip */
