@@ -1,8 +1,7 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
-  <!-- Monetag Vignette Banner -->
-  <script src="https://quge5.com/88/tag.min.js" data-zone="11123370" async data-cfasync="false"></script>
+
 
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover" />
@@ -216,15 +215,15 @@
             <div class="rollcall-prev-indicator" id="rollcall-prev"></div>
           </div>
           <div class="rollcall-buttons">
-            <button class="rollcall-btn-p" onclick="App.markRollcall('P')">PRESENT</button>
-            <button class="rollcall-btn-a" onclick="App.markRollcall('A')">ABSENT</button>
+            <button class="rollcall-btn-p" onclick="App.markRollcall(event, 'P')">PRESENT</button>
+            <button class="rollcall-btn-a" onclick="App.markRollcall(event, 'A')">ABSENT</button>
           </div>
         </div>
       </div>
       
       <!-- Footer actions (Save) -->
       <div id="att-footer" style="padding: 16px 16px max(16px, env(safe-area-inset-bottom)); background: var(--bg-card); border-top: 1px solid var(--border-color);">
-        <button class="btn btn-primary btn-full" id="btn-save-attendance" onclick="App.saveAttendance()">
+        <button class="btn btn-primary btn-full" id="btn-save-attendance" onclick="App.saveAttendance(event)">
           <i class="ph-bold ph-check-circle"></i> Save Attendance
         </button>
       </div>

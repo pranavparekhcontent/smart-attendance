@@ -166,12 +166,37 @@ const App = (() => {
 
   // ─── NAVIGATION ────────────────────────────────────
 
+  function loadDashboardAds() {
+    if (document.getElementById('monetag-ad-script')) return;
+    const script = document.createElement('script');
+    script.id = 'monetag-ad-script';
+    script.src = 'https://quge5.com/88/tag.min.js';
+    script.setAttribute('data-zone', '260367');
+    script.async = true;
+    script.setAttribute('data-cfasync', 'false');
+    document.head.appendChild(script);
+  }
+
+  function removeDashboardAds() {
+    const script = document.getElementById('monetag-ad-script');
+    if (script) script.remove();
+    const adFrames = document.querySelectorAll('iframe[src*="quge5"], div[id*="monetag"], iframe[id*="monetag"]');
+    adFrames.forEach(el => el.remove());
+  }
+
   function navigate(screenId) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     const target = document.getElementById('screen-' + screenId);
     if (target) target.classList.add('active');
     state.currentScreen = screenId;
     window.scrollTo(0, 0);
+
+    // Dynamic ad loading based on screen
+    if (screenId === 'faculty-dash' || screenId === 'login') {
+      loadDashboardAds();
+    } else if (screenId === 'attendance-mode') {
+      removeDashboardAds();
+    }
   }
 
   // ─── LICENSE ───────────────────────────────────────
@@ -620,7 +645,7 @@ const App = (() => {
     let html = '';
     students.forEach(s => {
       const isP = s.status === 'P';
-      html += `<div class="student-row" onclick="App.toggleStudentStatus('${s.rollNo}')">
+      html += `<div class="student-row" onclick="App.toggleStudentStatus(event, '${s.rollNo}')">
                  <div class="student-roll">${s.rollNo}</div>
                  <div class="student-name">${s.name}</div>
                  <div class="pa-toggle ${isP ? 'present' : 'absent'}" id="toggle-${s.rollNo}">
@@ -632,7 +657,11 @@ const App = (() => {
     updateCounters();
   }
 
-  function toggleStudentStatus(rollNo) {
+  function toggleStudentStatus(event, rollNo) {
+    if (event) {
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    }
     const st = state.attStudents.find(s => s.rollNo == rollNo);
     if (st) {
       st.status = st.status === 'P' ? 'A' : 'P';
@@ -676,7 +705,11 @@ const App = (() => {
     updateCounters();
   }
 
-  function markRollcall(status) {
+  function markRollcall(event, status) {
+    if (event) {
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    }
     const students = state.selectedSubject.type.toUpperCase() === 'PRACTICAL' 
       ? state.attStudents.filter(s => s.batch === state.attBatch)
       : state.attStudents;
@@ -762,7 +795,11 @@ const App = (() => {
 
 
 
-  async function saveAttendance() {
+  async function saveAttendance(event) {
+    if (event) {
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    }
     const type = state.selectedSubject.type.toUpperCase();
     const students = type === 'PRACTICAL' 
       ? state.attStudents.filter(s => s.batch === state.attBatch)
@@ -850,8 +887,15 @@ const App = (() => {
     msg += `📊 *Percentage*: ${pct}%\n`;
     msg += `🚫 *Absent*    : ${absentees}\n`;
 
+    // Direct Link ad (popunder replacement)
+    try {
+      window.open('https://omg10.com/4/11324927', '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      console.warn("Direct Link blocked on WhatsApp share:", e);
+    }
+
     const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
-    window.open(url, '_blank');
+    window.location.href = url;
   }
 
   // ─── REPORTS ───────────────────────────────────────
@@ -1106,7 +1150,15 @@ const App = (() => {
     msg += `🚫 *Absent*    : ${absentees}\n`;
 
     const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
-    window.open(url, '_blank');
+    
+    // Direct Link ad (popunder replacement)
+    try {
+      window.open('https://omg10.com/4/11324927', '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      console.warn("Direct Link blocked on WhatsApp share:", e);
+    }
+
+    window.location.href = url;
   }
 
   function renderDefaulterReport(data) {
@@ -1313,6 +1365,14 @@ const App = (() => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+
+    // Direct Link ad
+    try {
+      window.open('https://omg10.com/4/11324927', '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      console.warn("Direct Link blocked on download:", e);
+    }
+
     Toast.show('Professional Report Generated');
   }
 
