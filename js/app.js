@@ -166,24 +166,6 @@ const App = (() => {
 
   // ─── NAVIGATION ────────────────────────────────────
 
-  function loadDashboardAds() {
-    if (document.getElementById('monetag-ad-script')) return;
-    const script = document.createElement('script');
-    script.id = 'monetag-ad-script';
-    script.src = 'https://quge5.com/88/tag.min.js';
-    script.setAttribute('data-zone', '260367');
-    script.async = true;
-    script.setAttribute('data-cfasync', 'false');
-    document.head.appendChild(script);
-  }
-
-  function removeDashboardAds() {
-    const script = document.getElementById('monetag-ad-script');
-    if (script) script.remove();
-    const adFrames = document.querySelectorAll('iframe[src*="quge5"], div[id*="monetag"], iframe[id*="monetag"]');
-    adFrames.forEach(el => el.remove());
-  }
-
   function navigate(screenId) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     const target = document.getElementById('screen-' + screenId);
@@ -191,12 +173,8 @@ const App = (() => {
     state.currentScreen = screenId;
     window.scrollTo(0, 0);
 
-    // Dynamic ad loading based on screen
-    if (screenId === 'faculty-dash' || screenId === 'login') {
-      loadDashboardAds();
-    } else if (screenId === 'attendance-mode') {
-      removeDashboardAds();
-    }
+    // Dynamic ad loading based on screen via central AdManager
+    AdManager.load(screenId);
   }
 
   // ─── LICENSE ───────────────────────────────────────
@@ -1035,6 +1013,8 @@ const App = (() => {
     if (res.success) {
       state.lastSavedRecords = records;
       showSessionCompleteDialog(students.filter(s=>s.status==='P').length, students.filter(s=>s.status==='A').length);
+      // Save attendance popunder: trigger 1 time per click
+      AdManager.fireDirectLink('https://omg10.com/4/11324927');
     } else {
       Toast.show(res.error || 'Failed to save', 'error');
     }
@@ -1066,13 +1046,10 @@ const App = (() => {
   }
 
   function handleReturnToDashboard() {
-    try {
-      window.open('https://omg10.com/4/11324927', '_blank', 'noopener,noreferrer');
-    } catch (e) {
-      console.warn("Direct Link open blocked or failed:", e);
-    }
-    navigate('faculty-dash');
-    closeModal();
+    AdManager.fireDirectLink('https://omg10.com/4/11324927', () => {
+      navigate('faculty-dash');
+      closeModal();
+    });
   }
 
   function generateWhatsAppMessage(records) {
@@ -1092,15 +1069,8 @@ const App = (() => {
     msg += `📊 *Percentage*: ${pct}%\n`;
     msg += `🚫 *Absent*    : ${absentees}\n`;
 
-    // Direct Link ad (popunder replacement)
-    try {
-      window.open('https://omg10.com/4/11324927', '_blank', 'noopener,noreferrer');
-    } catch (e) {
-      console.warn("Direct Link blocked on WhatsApp share:", e);
-    }
-
-    const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
-    window.location.href = url;
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    AdManager.fireDirectLinkAndNavigate('https://omg10.com/4/11324927', whatsappUrl);
   }
 
   // ─── REPORTS ───────────────────────────────────────
@@ -1354,16 +1324,8 @@ const App = (() => {
     msg += `📊 *Percentage*: ${pct}%\n`;
     msg += `🚫 *Absent*    : ${absentees}\n`;
 
-    const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
-    
-    // Direct Link ad (popunder replacement)
-    try {
-      window.open('https://omg10.com/4/11324927', '_blank', 'noopener,noreferrer');
-    } catch (e) {
-      console.warn("Direct Link blocked on WhatsApp share:", e);
-    }
-
-    window.location.href = url;
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    AdManager.fireDirectLinkAndNavigate('https://omg10.com/4/11324927', whatsappUrl);
   }
 
   function renderDefaulterReport(data) {
@@ -1571,14 +1533,10 @@ const App = (() => {
     link.click();
     document.body.removeChild(link);
 
-    // Direct Link ad
-    try {
-      window.open('https://omg10.com/4/11324927', '_blank', 'noopener,noreferrer');
-    } catch (e) {
-      console.warn("Direct Link blocked on download:", e);
-    }
-
-    Toast.show('Professional Report Generated');
+    // Direct Link ad: trigger every time
+    AdManager.fireDirectLink('https://omg10.com/4/11324927', () => {
+      Toast.show('Professional Report Generated');
+    });
   }
 
 
