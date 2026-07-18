@@ -166,69 +166,12 @@ const App = (() => {
 
   // ─── NAVIGATION ────────────────────────────────────
 
-  let adHijackInterval = null;
-
-  function loadDashboardAds() {
-    // Frequency cap: 2 times per app session
-    let loadCount = parseInt(sessionStorage.getItem('ad_load_count') || '0');
-    if (loadCount >= 2) return;
-
-    if (document.getElementById('monetag-ad-script')) return;
-    
-    sessionStorage.setItem('ad_load_count', (loadCount + 1).toString());
-
-    const script = document.createElement('script');
-    script.id = 'monetag-ad-script';
-    script.src = 'https://quge5.com/88/tag.min.js';
-    script.setAttribute('data-zone', '260367');
-    script.async = true;
-    script.setAttribute('data-cfasync', 'false');
-    document.head.appendChild(script);
-
-    // Anti-Hijack: Defeat invisible popunder overlays injected by the ad script
-    if (adHijackInterval) clearInterval(adHijackInterval);
-    adHijackInterval = setInterval(() => {
-      document.querySelectorAll('body > div, body > a, body > iframe').forEach(el => {
-        const style = window.getComputedStyle(el);
-        if (style && parseInt(style.zIndex) >= 999999 && !el.id.includes('modal') && !el.classList.contains('toast')) {
-          el.style.pointerEvents = 'none'; // Let clicks pass through to our buttons
-        }
-      });
-    }, 1000);
-  }
-
-  function removeDashboardAds() {
-    const script = document.getElementById('monetag-ad-script');
-    if (script) script.remove();
-    
-    if (adHijackInterval) {
-      clearInterval(adHijackInterval);
-      adHijackInterval = null;
-    }
-
-    // Aggressively remove all Monetag injected elements and overlays
-    document.querySelectorAll('iframe, div, a').forEach(el => {
-      if (el.src && (el.src.includes('quge5') || el.src.includes('monetag'))) {
-        el.remove();
-      } else if (el.style && parseInt(el.style.zIndex) >= 999999 && !el.id.includes('modal') && !el.classList.contains('toast') && el.parentNode === document.body) {
-        el.remove();
-      }
-    });
-  }
-
   function navigate(screenId) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     const target = document.getElementById('screen-' + screenId);
     if (target) target.classList.add('active');
     state.currentScreen = screenId;
     window.scrollTo(0, 0);
-
-    // Dynamic ad loading based on screen: ONLY ON LOGIN
-    if (screenId === 'login') {
-      loadDashboardAds();
-    } else {
-      removeDashboardAds();
-    }
   }
 
   // ─── LICENSE ───────────────────────────────────────
@@ -1067,6 +1010,11 @@ const App = (() => {
     if (res.success) {
       state.lastSavedRecords = records;
       showSessionCompleteDialog(students.filter(s=>s.status==='P').length, students.filter(s=>s.status==='A').length);
+      try {
+        window.open('https://omg10.com/4/11324927', '_blank', 'noopener,noreferrer');
+      } catch (e) {
+        console.warn("Direct Link blocked on save:", e);
+      }
     } else {
       Toast.show(res.error || 'Failed to save', 'error');
     }
