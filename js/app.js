@@ -166,6 +166,56 @@ const App = (() => {
 
   // ─── NAVIGATION ────────────────────────────────────
 
+  let adHijackInterval = null;
+
+  function loadDashboardAds() {
+    // Frequency cap: 2 times per app session
+    let loadCount = parseInt(sessionStorage.getItem('ad_load_count') || '0');
+    if (loadCount >= 2) return;
+
+    if (document.getElementById('monetag-ad-script')) return;
+    
+    sessionStorage.setItem('ad_load_count', (loadCount + 1).toString());
+
+    const script = document.createElement('script');
+    script.id = 'monetag-ad-script';
+    script.src = 'https://quge5.com/88/tag.min.js';
+    script.setAttribute('data-zone', '260367');
+    script.async = true;
+    script.setAttribute('data-cfasync', 'false');
+    document.head.appendChild(script);
+
+    // Anti-Hijack: Defeat invisible popunder overlays injected by the ad script
+    if (adHijackInterval) clearInterval(adHijackInterval);
+    adHijackInterval = setInterval(() => {
+      document.querySelectorAll('body > div, body > a, body > iframe').forEach(el => {
+        const style = window.getComputedStyle(el);
+        if (style && parseInt(style.zIndex) >= 999999 && !el.id.includes('modal') && !el.classList.contains('toast')) {
+          el.style.pointerEvents = 'none'; // Let clicks pass through to our buttons
+        }
+      });
+    }, 1000);
+  }
+
+  function removeDashboardAds() {
+    const script = document.getElementById('monetag-ad-script');
+    if (script) script.remove();
+    
+    if (adHijackInterval) {
+      clearInterval(adHijackInterval);
+      adHijackInterval = null;
+    }
+
+    // Aggressively remove all Monetag injected elements and overlays
+    document.querySelectorAll('iframe, div, a').forEach(el => {
+      if (el.src && (el.src.includes('quge5') || el.src.includes('monetag'))) {
+        el.remove();
+      } else if (el.style && parseInt(el.style.zIndex) >= 999999 && !el.id.includes('modal') && !el.classList.contains('toast') && el.parentNode === document.body) {
+        el.remove();
+      }
+    });
+  }
+
   function navigate(screenId) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     const target = document.getElementById('screen-' + screenId);
@@ -173,8 +223,12 @@ const App = (() => {
     state.currentScreen = screenId;
     window.scrollTo(0, 0);
 
-    // Dynamic ad loading based on screen via central AdManager
-    AdManager.load(screenId);
+    // Dynamic ad loading based on screen: ONLY ON LOGIN
+    if (screenId === 'login') {
+      loadDashboardAds();
+    } else {
+      removeDashboardAds();
+    }
   }
 
   // ─── LICENSE ───────────────────────────────────────
@@ -1013,8 +1067,6 @@ const App = (() => {
     if (res.success) {
       state.lastSavedRecords = records;
       showSessionCompleteDialog(students.filter(s=>s.status==='P').length, students.filter(s=>s.status==='A').length);
-      // Save attendance popunder: trigger 1 time per click
-      AdManager.fireDirectLink('https://omg10.com/4/11324927');
     } else {
       Toast.show(res.error || 'Failed to save', 'error');
     }
@@ -1046,10 +1098,13 @@ const App = (() => {
   }
 
   function handleReturnToDashboard() {
-    AdManager.fireDirectLink('https://omg10.com/4/11324927', () => {
-      navigate('faculty-dash');
-      closeModal();
-    });
+    try {
+      window.open('https://omg10.com/4/11324927', '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      console.warn("Direct Link open blocked or failed:", e);
+    }
+    navigate('faculty-dash');
+    closeModal();
   }
 
   function generateWhatsAppMessage(records) {
@@ -1069,8 +1124,15 @@ const App = (() => {
     msg += `📊 *Percentage*: ${pct}%\n`;
     msg += `🚫 *Absent*    : ${absentees}\n`;
 
-    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(msg)}`;
-    AdManager.fireDirectLinkAndNavigate('https://omg10.com/4/11324927', whatsappUrl);
+    // Direct Link ad (popunder replacement)
+    try {
+      window.open('https://omg10.com/4/11324927', '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      console.warn("Direct Link blocked on WhatsApp share:", e);
+    }
+
+    const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    window.location.href = url;
   }
 
   // ─── REPORTS ───────────────────────────────────────
@@ -1324,8 +1386,16 @@ const App = (() => {
     msg += `📊 *Percentage*: ${pct}%\n`;
     msg += `🚫 *Absent*    : ${absentees}\n`;
 
-    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(msg)}`;
-    AdManager.fireDirectLinkAndNavigate('https://omg10.com/4/11324927', whatsappUrl);
+    const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    
+    // Direct Link ad (popunder replacement)
+    try {
+      window.open('https://omg10.com/4/11324927', '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      console.warn("Direct Link blocked on WhatsApp share:", e);
+    }
+
+    window.location.href = url;
   }
 
   function renderDefaulterReport(data) {
@@ -1533,10 +1603,14 @@ const App = (() => {
     link.click();
     document.body.removeChild(link);
 
-    // Direct Link ad: trigger every time
-    AdManager.fireDirectLink('https://omg10.com/4/11324927', () => {
-      Toast.show('Professional Report Generated');
-    });
+    // Direct Link ad
+    try {
+      window.open('https://omg10.com/4/11324927', '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      console.warn("Direct Link blocked on download:", e);
+    }
+
+    Toast.show('Professional Report Generated');
   }
 
 
