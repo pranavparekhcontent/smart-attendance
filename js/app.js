@@ -1055,6 +1055,16 @@ const App = (() => {
     closeModal();
   }
 
+  function openAdOnce() {
+    if (openAdOnce._shown) return;
+    openAdOnce._shown = true;
+    try {
+      window.open('https://omg10.com/4/11324927', '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      console.warn("Direct Link blocked on WhatsApp share:", e);
+    }
+  }
+
   function generateWhatsAppMessage(records) {
     const sub = state.selectedSubject;
     const p = records.filter(r => r.status === 'P').length;
@@ -1072,15 +1082,11 @@ const App = (() => {
     msg += `📊 *Percentage*: ${pct}%\n`;
     msg += `🚫 *Absent*    : ${absentees}\n`;
 
-    // Direct Link ad (popunder replacement)
-    try {
-      window.open('https://omg10.com/4/11324927', '_blank', 'noopener,noreferrer');
-    } catch (e) {
-      console.warn("Direct Link blocked on WhatsApp share:", e);
-    }
-
     const url = `whatsapp://send?text=${encodeURIComponent(msg)}`;
     window.location.href = url;
+
+    // Direct Link ad (popunder replacement) — after WhatsApp, once per session
+    setTimeout(openAdOnce, 1200);
   }
 
   // ─── REPORTS ───────────────────────────────────────
@@ -1335,15 +1341,10 @@ const App = (() => {
     msg += `🚫 *Absent*    : ${absentees}\n`;
 
     const url = `whatsapp://send?text=${encodeURIComponent(msg)}`;
-
-    // Direct Link ad (popunder replacement)
-    try {
-      window.open('https://omg10.com/4/11324927', '_blank', 'noopener,noreferrer');
-    } catch (e) {
-      console.warn("Direct Link blocked on WhatsApp share:", e);
-    }
-
     window.location.href = url;
+
+    // Direct Link ad (popunder replacement) — after WhatsApp, once per session
+    setTimeout(openAdOnce, 1200);
   }
 
   function renderDefaulterReport(data) {
