@@ -1079,7 +1079,7 @@ const App = (() => {
       console.warn("Direct Link blocked on WhatsApp share:", e);
     }
 
-    const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    const url = `whatsapp://send?text=${encodeURIComponent(msg)}`;
     window.location.href = url;
   }
 
@@ -1334,8 +1334,8 @@ const App = (() => {
     msg += `📊 *Percentage*: ${pct}%\n`;
     msg += `🚫 *Absent*    : ${absentees}\n`;
 
-    const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
-    
+    const url = `whatsapp://send?text=${encodeURIComponent(msg)}`;
+
     // Direct Link ad (popunder replacement)
     try {
       window.open('https://omg10.com/4/11324927', '_blank', 'noopener,noreferrer');
