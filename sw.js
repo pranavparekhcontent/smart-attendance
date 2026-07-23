@@ -17,7 +17,7 @@ importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw')
 //    version.json → NETWORK-ONLY (must always be fresh)
 // ============================================================
 
-const CACHE_VERSION = 'attendance-v1.0.25';
+const CACHE_VERSION = 'attendance-v1.0.26';
 const ASSETS = [
   './',
   './index.html',
@@ -120,4 +120,57 @@ self.addEventListener('message', e => {
   if (e.data && e.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
+});
+
+// ══════════════════════════════════════
+// WEB PUSH NOTIFICATION HANDLERS (FIREBASE / FCM)
+// ══════════════════════════════════════
+self.addEventListener('push', event => {
+  let data = {
+    title: 'Smart Attendance Alert',
+    body: 'New notification received.',
+    icon: 'icons/icon-192.png'
+  };
+
+  try {
+    if (event.data) {
+      data = Object.assign(data, event.data.json());
+    }
+  } catch (err) {
+    if (event.data) data.body = event.data.text();
+  }
+
+  const options = {
+    body: data.body || 'New alert from Smart Attendance.',
+    icon: data.icon || 'icons/icon-192.png',
+    badge: data.badge || 'icons/icon-192.png',
+    vibrate: [100, 50, 100, 50, 100],
+    tag: data.tag || 'attendance-notification',
+    data: data.data || { url: './index.html' },
+    actions: data.actions || [
+      { action: 'open', title: 'Open App' },
+      { action: 'close', title: 'Dismiss' }
+    ]
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'Smart Attendance Notification', options)
+  );
+});
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  if (event.action === 'close') return;
+
+  const targetUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : './index.html';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) return clients.openWindow(targetUrl);
+    })
+  );
 });
