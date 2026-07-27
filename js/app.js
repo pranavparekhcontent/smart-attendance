@@ -1423,134 +1423,99 @@ const App = (() => {
       ? `${formatDate(state.reportStartDate)} to ${formatDate(state.reportEndDate)}`
       : `01 Jan 2020 to ${formatDate(new Date().toISOString().split('T')[0])}`;
 
-    // FILE NAME format: SubjectCode_Batch_DateRange.xls
+    // FILE NAME format: SubjectCode_Batch_DateRange.xlsx
     const batchFilePart = (isPrac && state.reportsBatch) ? `_${state.reportsBatch}` : '';
     const dateFilePart = (state.reportStartDate && state.reportEndDate)
       ? `${formatDate(state.reportStartDate).replace(/-/g, '')}_to_${formatDate(state.reportEndDate).replace(/-/g, '')}`
       : `All_Time`;
-    const filename = `${sub.code}${batchFilePart}_${dateFilePart}.xls`.replace(/[\\/:*?"<>|]/g, '_');
+    const filename = `${sub.code}${batchFilePart}_${dateFilePart}.xlsx`.replace(/[\\/:*?"<>|]/g, '_');
 
-    // 3. Build XML Spreadsheet
-    const escapeXml = (str) => str ? String(str).replace(/[<>&"']/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":"&apos;"}[c])) : "";
-    const mName = escapeXml(cfg.managementName || (window.appStartContext && window.appStartContext.managementName) || "Management");
-    const cName = escapeXml(cfg.collegeName || (window.appStartContext && window.appStartContext.collegeName) || "College");
-    const metaStr = escapeXml(`${sub.code} - ${sub.name}${batchSuffix} | ${sub.program} | ${sub.year} | ${dateRange}`);
-    
-    // Total Columns = Roll(1) + Name(1) + Dates(N) + TotP(1) + TotA(1) + Total(1) + %Att(1) = N + 6
-    const mergeVal = rawDates.length + 5; 
+    // 3. Build XLSX Spreadsheet via SheetJS
+    const mName = cfg.managementName || (window.appStartContext && window.appStartContext.managementName) || "Management";
+    const cName = cfg.collegeName || (window.appStartContext && window.appStartContext.collegeName) || "College";
+    const metaStr = `${sub.code} - ${sub.name}${batchSuffix} | ${sub.program} | ${sub.year} | ${dateRange}`;
 
-    // Helper for Borders (ss:Position="All" is NOT valid SpreadsheetML)
-    const borderXml = `
-      <Borders>
-        <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
-        <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
-        <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
-        <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
-      </Borders>`;
+    if (typeof XLSX !== 'undefined') {
+      const aoa = [];
+      aoa.push([mName]); // Row 0
+      aoa.push([cName]); // Row 1
+      aoa.push([]);      // Row 2
+      aoa.push([metaStr]); // Row 3
+      aoa.push([]);      // Row 4
 
-    let xml = `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>
-    <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:html="http://www.w3.org/TR/REC-html40">
-    <Styles>
-      <Style ss:ID="Title"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:Bold="1" ss:Size="14" ss:Color="#333333"/></Style>
-      <Style ss:ID="SubTitle"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:Bold="1" ss:Size="11" ss:Color="#333333"/></Style>
-      <Style ss:ID="MetaRow"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:Bold="1" ss:Size="10" ss:Color="#0F172A"/><Interior ss:Color="#E2E8F0" ss:Pattern="Solid"/>${borderXml}</Style>
-      <Style ss:ID="Header"><Font ss:Bold="1" ss:Color="#0F172A"/><Interior ss:Color="#F1F5F9" ss:Pattern="Solid"/>${borderXml}<Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
-      <Style ss:ID="Normal">${borderXml}<Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
-      <Style ss:ID="NameCell">${borderXml}<Alignment ss:Horizontal="Left" ss:Vertical="Center"/></Style>
-      <Style ss:ID="PresentCell">${borderXml}<Font ss:Color="#15803D"/><Interior ss:Color="#DCFCE7" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
-      <Style ss:ID="AbsentCell">${borderXml}<Font ss:Color="#B91C1C"/><Interior ss:Color="#FEE2E2" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
-      <Style ss:ID="PctGood">${borderXml}<Font ss:Color="#14532D" ss:Bold="1"/><Interior ss:Color="#BBF7D0" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
-      <Style ss:ID="PctBad">${borderXml}<Font ss:Color="#7F1D1D" ss:Bold="1"/><Interior ss:Color="#FECACA" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
-    </Styles>
-    <Worksheet ss:Name="${escapeXml(sheetName)}">
-    <Table>
-      <Column ss:Width="60"/><Column ss:Width="250"/>`;
-    
-    rawDates.forEach(() => xml += `<Column ss:Width="80"/>`);
-    xml += `<Column ss:Width="60"/><Column ss:Width="60"/><Column ss:Width="60"/><Column ss:Width="60"/>`;
-
-    xml += `
-      <Row ss:Height="25"><Cell ss:MergeAcross="${mergeVal}" ss:StyleID="Title"><Data ss:Type="String">${mName}</Data></Cell></Row>
-      <Row ss:Height="20"><Cell ss:MergeAcross="${mergeVal}" ss:StyleID="SubTitle"><Data ss:Type="String">${cName}</Data></Cell></Row>
-      <Row ss:Height="10"><Cell ss:MergeAcross="${mergeVal}"><Data ss:Type="String"></Data></Cell></Row>
-      <Row ss:Height="20"><Cell ss:MergeAcross="${mergeVal}" ss:StyleID="MetaRow"><Data ss:Type="String">${metaStr}</Data></Cell></Row>
-      <Row ss:Height="10"><Cell ss:MergeAcross="${mergeVal}"><Data ss:Type="String"></Data></Cell></Row>
-      <Row ss:Height="22">
-        <Cell ss:StyleID="Header"><Data ss:Type="String">Roll No.</Data></Cell>
-        <Cell ss:StyleID="Header"><Data ss:Type="String">Name</Data></Cell>`;
-    
-    rawDates.forEach(d => {
-      const baseDate = d.split(' ')[0];
-      xml += `<Cell ss:StyleID="Header"><Data ss:Type="String">${formatDate(baseDate)}</Data></Cell>`;
-    });
-    
-    xml += `<Cell ss:StyleID="Header"><Data ss:Type="String">Total P</Data></Cell>
-            <Cell ss:StyleID="Header"><Data ss:Type="String">Total A</Data></Cell>
-            <Cell ss:StyleID="Header"><Data ss:Type="String">Total</Data></Cell>
-            <Cell ss:StyleID="Header"><Data ss:Type="String">% Att.</Data></Cell></Row>`;
-
-    xml += `
-      <Row ss:Height="20">
-        <Cell ss:StyleID="Header"><Data ss:Type="String"></Data></Cell>
-        <Cell ss:StyleID="Header"><Data ss:Type="String">Topic</Data></Cell>`;
-    
-    rawDates.forEach(d => {
-      const recForDate = filtered.find(r => r.date === d);
-      const topic = recForDate ? recForDate.topic || '' : '';
-      xml += `<Cell ss:StyleID="Normal"><Data ss:Type="String">${escapeXml(topic)}</Data></Cell>`;
-    });
-    
-    xml += `
-        <Cell ss:StyleID="Normal"><Data ss:Type="String"></Data></Cell>
-        <Cell ss:StyleID="Normal"><Data ss:Type="String"></Data></Cell>
-        <Cell ss:StyleID="Normal"><Data ss:Type="String"></Data></Cell>
-        <Cell ss:StyleID="Normal"><Data ss:Type="String"></Data></Cell>
-      </Row>`;
-
-    const students = {};
-    filtered.forEach(r => {
-      if (!students[r.rollNo]) students[r.rollNo] = { name: r.name, records: {} };
-      students[r.rollNo].records[r.date] = r.status;
-    });
-
-    Object.keys(students).sort((a,b) => {
-      const na = parseFloat(a), nb = parseFloat(b);
-      return (isNaN(na) || isNaN(nb)) ? a.localeCompare(b) : na - nb;
-    }).forEach(roll => {
-      const s = students[roll];
-      xml += `<Row ss:Height="18">`;
-      xml += `<Cell ss:StyleID="Normal"><Data ss:Type="String">${escapeXml(roll)}</Data></Cell>`;
-      xml += `<Cell ss:StyleID="NameCell"><Data ss:Type="String">${escapeXml(s.name)}</Data></Cell>`;
-      
-      let pCount = 0, aCount = 0;
+      // Header row (Row 5)
+      const headerRow = ["Roll No.", "Name"];
       rawDates.forEach(d => {
-        const stat = s.records[d] || '-';
-        if (stat === 'P') pCount++;
-        if (stat === 'A') aCount++;
-        const style = stat === 'P' ? 'PresentCell' : (stat === 'A' ? 'AbsentCell' : 'Normal');
-        xml += `<Cell ss:StyleID="${style}"><Data ss:Type="String">${stat}</Data></Cell>`;
+        const baseDate = d.split(' ')[0];
+        headerRow.push(formatDate(baseDate));
       });
+      headerRow.push("Total P", "Total A", "Total", "% Att.");
+      aoa.push(headerRow);
+
+      // Topic row (Row 6)
+      const topicRow = ["", "Topic"];
+      rawDates.forEach(d => {
+        const recForDate = filtered.find(r => r.date === d);
+        topicRow.push(recForDate ? recForDate.topic || '' : '');
+      });
+      topicRow.push("", "", "", "");
+      aoa.push(topicRow);
+
+      // Student rows (Row 7+)
+      const students = {};
+      filtered.forEach(r => {
+        if (!students[r.rollNo]) students[r.rollNo] = { name: r.name, records: {} };
+        students[r.rollNo].records[r.date] = r.status;
+      });
+
+      Object.keys(students).sort((a,b) => {
+        const na = parseFloat(a), nb = parseFloat(b);
+        return (isNaN(na) || isNaN(nb)) ? a.localeCompare(b) : na - nb;
+      }).forEach(roll => {
+        const s = students[roll];
+        const studentRow = [roll, s.name];
+        let pCount = 0, aCount = 0;
+        rawDates.forEach(d => {
+          const stat = s.records[d] || '-';
+          if (stat === 'P') pCount++;
+          if (stat === 'A') aCount++;
+          studentRow.push(stat);
+        });
+        const total = pCount + aCount;
+        const pct = total === 0 ? 0 : Math.round((pCount / total) * 100);
+        studentRow.push(pCount, aCount, rawDates.length, `${pct}.0%`);
+        aoa.push(studentRow);
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+      const totalCols = rawDates.length + 6;
+      ws['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: totalCols - 1 } },
+        { s: { r: 3, c: 0 }, e: { r: 3, c: totalCols - 1 } }
+      ];
+
+      const cols = [{ wch: 12 }, { wch: 28 }];
+      rawDates.forEach(() => cols.push({ wch: 14 }));
+      cols.push({ wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 });
+      ws['!cols'] = cols;
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
       
-      const total = pCount + aCount;
-      const pct = total === 0 ? 0 : Math.round((pCount / total) * 100);
-      xml += `<Cell ss:StyleID="Normal"><Data ss:Type="Number">${pCount}</Data></Cell>`;
-      xml += `<Cell ss:StyleID="Normal"><Data ss:Type="Number">${aCount}</Data></Cell>`;
-      xml += `<Cell ss:StyleID="Normal"><Data ss:Type="Number">${rawDates.length}</Data></Cell>`;
-      xml += `<Cell ss:StyleID="${pct < limit ? 'PctBad' : 'PctGood'}"><Data ss:Type="String">${pct}.0%</Data></Cell>`;
-      xml += `</Row>`;
-    });
-
-    xml += `</Table></Worksheet></Workbook>`;
-
-    const blob = new Blob([xml], { type: 'application/vnd.ms-excel' });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
 
     // Direct Link ad
     try {
