@@ -1430,35 +1430,122 @@ const App = (() => {
       : `All_Time`;
     const filename = `${sub.code}${batchFilePart}_${dateFilePart}.xlsx`.replace(/[\\/:*?"<>|]/g, '_');
 
-    // 3. Build XLSX Spreadsheet via SheetJS
+    // 3. Build XLSX Spreadsheet via xlsx-js-style
     const mName = cfg.managementName || (window.appStartContext && window.appStartContext.managementName) || "Management";
     const cName = cfg.collegeName || (window.appStartContext && window.appStartContext.collegeName) || "College";
     const metaStr = `${sub.code} - ${sub.name}${batchSuffix} | ${sub.program} | ${sub.year} | ${dateRange}`;
 
     if (typeof XLSX !== 'undefined') {
+      const thinBorder = {
+        top: { style: 'thin', color: { rgb: 'CBD5E1' } },
+        bottom: { style: 'thin', color: { rgb: 'CBD5E1' } },
+        left: { style: 'thin', color: { rgb: 'CBD5E1' } },
+        right: { style: 'thin', color: { rgb: 'CBD5E1' } }
+      };
+
+      const styleTitle = {
+        font: { sz: 14, bold: true, color: { rgb: '333333' } },
+        alignment: { horizontal: 'center', vertical: 'center' }
+      };
+
+      const styleSubTitle = {
+        font: { sz: 11, bold: true, color: { rgb: '333333' } },
+        alignment: { horizontal: 'center', vertical: 'center' }
+      };
+
+      const styleMeta = {
+        font: { sz: 10, bold: true, color: { rgb: '0F172A' } },
+        fill: { fgColor: { rgb: 'E2E8F0' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: thinBorder
+      };
+
+      const styleHeader = {
+        font: { sz: 10, bold: true, color: { rgb: '0F172A' } },
+        fill: { fgColor: { rgb: 'F1F5F9' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: thinBorder
+      };
+
+      const styleNormal = {
+        font: { sz: 10, color: { rgb: '1E293B' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: thinBorder
+      };
+
+      const styleName = {
+        font: { sz: 10, color: { rgb: '1E293B' } },
+        alignment: { horizontal: 'left', vertical: 'center' },
+        border: thinBorder
+      };
+
+      const stylePresent = {
+        font: { sz: 10, color: { rgb: '15803D' } },
+        fill: { fgColor: { rgb: 'DCFCE7' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: thinBorder
+      };
+
+      const styleAbsent = {
+        font: { sz: 10, color: { rgb: 'B91C1C' } },
+        fill: { fgColor: { rgb: 'FEE2E2' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: thinBorder
+      };
+
+      const stylePctGood = {
+        font: { sz: 10, bold: true, color: { rgb: '14532D' } },
+        fill: { fgColor: { rgb: 'BBF7D0' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: thinBorder
+      };
+
+      const stylePctBad = {
+        font: { sz: 10, bold: true, color: { rgb: '7F1D1D' } },
+        fill: { fgColor: { rgb: 'FECACA' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: thinBorder
+      };
+
       const aoa = [];
-      aoa.push([mName]); // Row 0
-      aoa.push([cName]); // Row 1
-      aoa.push([]);      // Row 2
-      aoa.push([metaStr]); // Row 3
-      aoa.push([]);      // Row 4
+      aoa.push([{ v: mName, s: styleTitle }]); // Row 0
+      aoa.push([{ v: cName, s: styleSubTitle }]); // Row 1
+      aoa.push([]); // Row 2
+      aoa.push([{ v: metaStr, s: styleMeta }]); // Row 3
+      aoa.push([]); // Row 4
 
       // Header row (Row 5)
-      const headerRow = ["Roll No.", "Name"];
+      const headerRow = [
+        { v: "Roll No.", s: styleHeader },
+        { v: "Name", s: styleHeader }
+      ];
       rawDates.forEach(d => {
         const baseDate = d.split(' ')[0];
-        headerRow.push(formatDate(baseDate));
+        headerRow.push({ v: formatDate(baseDate), s: styleHeader });
       });
-      headerRow.push("Total P", "Total A", "Total", "% Att.");
+      headerRow.push(
+        { v: "Total P", s: styleHeader },
+        { v: "Total A", s: styleHeader },
+        { v: "Total", s: styleHeader },
+        { v: "% Att.", s: styleHeader }
+      );
       aoa.push(headerRow);
 
       // Topic row (Row 6)
-      const topicRow = ["", "Topic"];
+      const topicRow = [
+        { v: "", s: styleHeader },
+        { v: "Topic", s: styleHeader }
+      ];
       rawDates.forEach(d => {
         const recForDate = filtered.find(r => r.date === d);
-        topicRow.push(recForDate ? recForDate.topic || '' : '');
+        topicRow.push({ v: recForDate ? recForDate.topic || '' : '', s: styleNormal });
       });
-      topicRow.push("", "", "", "");
+      topicRow.push(
+        { v: "", s: styleNormal },
+        { v: "", s: styleNormal },
+        { v: "", s: styleNormal },
+        { v: "", s: styleNormal }
+      );
       aoa.push(topicRow);
 
       // Student rows (Row 7+)
@@ -1473,17 +1560,24 @@ const App = (() => {
         return (isNaN(na) || isNaN(nb)) ? a.localeCompare(b) : na - nb;
       }).forEach(roll => {
         const s = students[roll];
-        const studentRow = [roll, s.name];
+        const studentRow = [
+          { v: roll, s: styleNormal },
+          { v: s.name, s: styleName }
+        ];
         let pCount = 0, aCount = 0;
         rawDates.forEach(d => {
           const stat = s.records[d] || '-';
-          if (stat === 'P') pCount++;
-          if (stat === 'A') aCount++;
-          studentRow.push(stat);
+          let style = styleNormal;
+          if (stat === 'P') { pCount++; style = stylePresent; }
+          else if (stat === 'A') { aCount++; style = styleAbsent; }
+          studentRow.push({ v: stat, s: style });
         });
         const total = pCount + aCount;
         const pct = total === 0 ? 0 : Math.round((pCount / total) * 100);
-        studentRow.push(pCount, aCount, rawDates.length, `${pct}.0%`);
+        studentRow.push({ v: pCount, s: styleNormal });
+        studentRow.push({ v: aCount, s: styleNormal });
+        studentRow.push({ v: rawDates.length, s: styleNormal });
+        studentRow.push({ v: `${pct}.0%`, s: pct < limit ? stylePctBad : stylePctGood });
         aoa.push(studentRow);
       });
 

@@ -9,7 +9,7 @@ self.lary = ""
 importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw')
 
 // ============================================================
-//  Smart Attendance — Service Worker  v1.0.28
+//  Smart Attendance — Service Worker  v1.0.29
 //  STRATEGY:
 //    HTML pages → NETWORK-FIRST (always load fresh, cache = offline backup)
 //    Static assets → CACHE-FIRST (fast loads, background refresh)
@@ -17,7 +17,7 @@ importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw')
 //    version.json → NETWORK-ONLY (must always be fresh)
 // ============================================================
 
-const CACHE_VERSION = 'attendance-v1.0.28';
+const CACHE_VERSION = 'attendance-v1.0.29';
 const ASSETS = [
   './',
   './index.html',
@@ -30,7 +30,7 @@ const ASSETS = [
   './appstart/translator.js',
   './appstart/appstart.js',
   './appstart/appstart.css',
-  './js/xlsx.full.min.js',
+  './js/xlsx-js-style.js',
   './js/api.js',
   './js/app.js',
   './manifest.json',
