@@ -11,12 +11,12 @@ const App = (() => {
     facultyName: '',
 
     allData: null,
-    
+
     // Dashboard Selection
     sessionDate: new Date().toISOString().split('T')[0], // YYYY-MM-DD
     selectedSubject: null,
     sessionTopic: '',
-    
+
     // Attendance Session
     attBatch: '',
     attStudents: [],
@@ -56,7 +56,7 @@ const App = (() => {
   function fixViewport() {
     let vh = window.innerHeight * 0.01;
     document.documentElement.style.setProperty('--vh', `${vh}px`);
-    
+
     // Notch handling
     if (Device.getHasNotch()) {
       document.body.classList.add('has-notch');
@@ -74,15 +74,15 @@ const App = (() => {
 
     // 1. Receive data from the engine's background fetch
     let rawData = null;
-    
+
     // Aggressive Data Extraction (The "Translator")
     if (context.fetchedData) {
       // Check for 'allData' key (new engine default) or directly nested data
       rawData = context.fetchedData.allData || context.fetchedData.data || context.fetchedData;
-      
+
       // If it's still a string, try parsing it
       if (typeof rawData === 'string' && rawData.trim().startsWith('{')) {
-        try { rawData = JSON.parse(rawData); } catch(e) {}
+        try { rawData = JSON.parse(rawData); } catch (e) { }
       }
     }
 
@@ -100,17 +100,17 @@ const App = (() => {
     if (rawData) {
       // If data is wrapped in a .data or .records property, unwrapped it
       const actualData = rawData.data || rawData.records || rawData;
-      
+
       if (actualData.teachers || actualData.subjects || rawData.success) {
         state.allData = actualData;
-        
+
         // Safety: Ensure required arrays exist
         if (!state.allData.teachers) state.allData.teachers = [];
         if (!state.allData.subjects) state.allData.subjects = [];
-        
+
         // Persist to cache
         localStorage.setItem('attendance_cache_allData', JSON.stringify({ ts: Date.now(), data: state.allData }));
-        
+
         // 🚀 BRIDGE: Master Config → Subjects (Centralized Output ID)
         if (context.config && context.config.output_sheet_id) {
           const masterId = API.extractSheetId(context.config.output_sheet_id);
@@ -126,20 +126,20 @@ const App = (() => {
         console.log("✅ Translator: Data successfully mapped to app state.", state.allData);
       }
     }
-    
+
     // 4. Handle errors if translation failed
     if (!state.allData) {
       const errMsg = (rawData && rawData.error) ? rawData.error : 'Format Mismatch';
       console.error("❌ Translator Error:", errMsg, "Raw Payload:", rawData);
       Toast.show('Sync Error: ' + errMsg, 'error');
-      
+
       // Emergency: Last-last resort cache
       const fallbackRaw = localStorage.getItem('attendance_cache_allData');
       if (fallbackRaw) {
-        try { 
-          state.allData = JSON.parse(fallbackRaw).data; 
-          Toast.show('Using offline cache', 'warning'); 
-        } catch(e){}
+        try {
+          state.allData = JSON.parse(fallbackRaw).data;
+          Toast.show('Using offline cache', 'warning');
+        } catch (e) { }
       }
     }
 
@@ -186,9 +186,9 @@ const App = (() => {
                   <div class="modal-subtitle">Tap your name to select</div>
                 </div>
                 <div class="modal-body" style="padding:10px;">`;
-    
+
     const teachers = (state.allData && state.allData.teachers) ? state.allData.teachers : [];
-    
+
     if (teachers.length === 0) {
       const isMissing = !state.allData;
       html += `<div style="padding:40px 20px; text-align:center;">
@@ -251,14 +251,14 @@ const App = (() => {
     if (!pin) return Toast.show('Enter PIN', 'error');
 
     // Split valid pins if multiple exist (comma separated in excel)
-    const validPins = expectedPin ? expectedPin.split(',').map(p=>p.trim()) : [];
+    const validPins = expectedPin ? expectedPin.split(',').map(p => p.trim()) : [];
 
     if (validPins.includes(pin)) {
       state.role = role;
       state.facultyName = name;
       localStorage.setItem('rmd_role', role);
       localStorage.setItem('rmd_faculty', name);
-      
+
       closeModal();
       document.getElementById('dash-faculty-name').innerText = name;
       document.getElementById('dash-avatar').innerText = name.charAt(0).toUpperCase();
@@ -308,7 +308,7 @@ const App = (() => {
 
   function showSubjectPicker(mode = 'dash') {
     if (!state.allData || !state.allData.subjects) return Toast.show('Subjects not loaded', 'error');
-    
+
     // Filter subjects for logged in faculty
     const mySubjects = state.allData.subjects.filter(s => {
       if (!s.faculty) return false;
@@ -357,10 +357,10 @@ const App = (() => {
         state.reportsBatch = ''; // Reset batch
         document.getElementById('rep-subject-name').innerText = sub.code + ' - ' + sub.name;
         document.getElementById('rep-subject-name').classList.remove('subject-placeholder');
-        
+
         const isPractical = sub.type.toUpperCase() === 'PRACTICAL';
         document.getElementById('reports-batch-selector').style.display = isPractical ? 'block' : 'none';
-        
+
         fetchReportData();
       }
     }
@@ -370,7 +370,7 @@ const App = (() => {
   function renderReportBatchSelector() {
     const container = document.getElementById('rep-batch-list');
     const batches = state.availableReportBatches || [];
-    
+
     if (batches.length === 0) {
       container.innerHTML = `<div style="font-size:12px; color:var(--text-4); padding:4px 8px;">Loading batches...</div>`;
       return;
@@ -404,7 +404,7 @@ const App = (() => {
                   <div class="modal-footer" style="gap:10px;">
                     <button class="btn btn-primary" style="flex:1" onclick="window._submitTopic()">Start</button>
                   </div>`;
-      
+
       window._submitTopic = () => {
         const val = document.getElementById('picker-topic').value.trim();
         if (!val) {
@@ -415,9 +415,9 @@ const App = (() => {
         delete window._submitTopic;
         resolve(val);
       };
-      
+
       showModal(html);
-      
+
       setTimeout(() => {
         const input = document.getElementById('picker-topic');
         if (input) input.focus();
@@ -528,7 +528,7 @@ const App = (() => {
         const customVal = document.getElementById('syl-custom-input')?.value?.trim();
         const customSelected = otherBtn?.classList.contains('selected') && customVal;
         const totalSelected = selected.length + (customSelected ? 1 : 0);
-        
+
         const btn = document.getElementById('syl-confirm-btn');
         if (totalSelected > 0) {
           btn.style.opacity = '1';
@@ -553,7 +553,7 @@ const App = (() => {
         const selected = document.querySelectorAll(`#${pickerId} .syl-chip.selected`);
         const parts = [];
         selected.forEach(el => parts.push(decodeURIComponent(el.dataset.value)));
-        
+
         const otherBtn = document.getElementById('syl-other-btn');
         if (otherBtn?.classList.contains('selected')) {
           const customVal = document.getElementById('syl-custom-input')?.value?.trim();
@@ -584,7 +584,7 @@ const App = (() => {
 
   async function startAttendanceFlow() {
     if (!state.selectedSubject) return Toast.show('Please select a subject first', 'warning');
-    
+
     let topic = '';
     let hasSyllabusPoints = false;
     let syllabusPoints = [];
@@ -635,16 +635,16 @@ const App = (() => {
     }
 
     state.sessionTopic = topic;
-    
+
     showSpinner('Fetching Students...', 'ph-users-three');
     const res = await API.getStudents(state.selectedSubject.year);
     hideSpinner();
 
     if (!res.success) return Toast.show(res.error, 'error');
-    
+
     state.attStudents = res.students;
     state.sessionDateSuffix = '';
-    
+
     if (state.selectedSubject.type.toUpperCase() === 'PRACTICAL') {
       setupAttendanceUI();
       return;
@@ -673,7 +673,7 @@ const App = (() => {
         }
       }
     }
-    
+
     setupAttendanceUI();
   }
 
@@ -684,12 +684,12 @@ const App = (() => {
     const type = state.selectedSubject.type.toUpperCase();
     let baseSuffix = type === 'PRACTICAL' ? ' (P' : ' (L';
     let nextNum = 2;
-    
-    while(nextNum <= 12) {
+
+    while (nextNum <= 12) {
       let testDateStr = dbFormatDate(state.sessionDate) + baseSuffix + nextNum + ')';
       let check = await API.getAttendance(state.selectedSubject.code, state.selectedSubject.year, testDateStr);
       let isConflict = false;
-      
+
       if (check.success && check.records && check.records.length > 0) {
         if (type === 'PRACTICAL') {
           isConflict = check.records.some(r => r.batch === state.attBatch);
@@ -697,12 +697,12 @@ const App = (() => {
           isConflict = true;
         }
       }
-      
+
       if (isConflict) {
-         nextNum++;
+        nextNum++;
       } else {
-         state.sessionDateSuffix = baseSuffix + nextNum + ')';
-         break;
+        state.sessionDateSuffix = baseSuffix + nextNum + ')';
+        break;
       }
     }
     if (!state.sessionDateSuffix) {
@@ -715,7 +715,7 @@ const App = (() => {
     closeModal();
     document.getElementById('att-subject-name').innerText = state.selectedSubject.name;
     document.getElementById('att-subject-meta').innerText = `${state.selectedSubject.year} | ${state.selectedSubject.type} | ${formatDate(state.sessionDate)}${state.sessionDateSuffix}`;
-    
+
     // Add default status
     state.attStudents.forEach(s => s.status = null);
     updateCounters();
@@ -747,13 +747,13 @@ const App = (() => {
     elem.classList.add('active');
     state.attBatch = batch;
     updateCounters();
-    
+
     // Pre-check for PRACTICAL BATCH
     if (navigator.onLine) {
       showSpinner(`Checking session for Batch ${batch}...`, 'ph-magnifying-glass');
       const sessionRes = await API.getAttendance(state.selectedSubject.code, state.selectedSubject.year, dbFormatDate(state.sessionDate), state.selectedSubject.outputSheetId);
       hideSpinner();
-      
+
       if (sessionRes.success && sessionRes.records) {
         const existingDates = [...new Set(sessionRes.records.filter(r => r.batch === batch).map(r => r.date))];
         if (existingDates.length > 0) {
@@ -801,7 +801,7 @@ const App = (() => {
 
   function setEntryMode(mode) {
     closeModal();
-    const studentsToShow = state.selectedSubject.type.toUpperCase() === 'PRACTICAL' 
+    const studentsToShow = state.selectedSubject.type.toUpperCase() === 'PRACTICAL'
       ? state.attStudents.filter(s => s.batch === state.attBatch)
       : state.attStudents;
 
@@ -821,7 +821,7 @@ const App = (() => {
   function renderListView(students) {
     document.getElementById('att-list-view').style.display = 'block';
     document.getElementById('att-rollcall-view').style.display = 'none';
-    
+
     let html = '';
     students.forEach(s => {
       const isP = s.status === 'P';
@@ -867,12 +867,12 @@ const App = (() => {
       renderListView(students); // switch back to list view to verify/save
       return;
     }
-    
+
     const st = students[state.rollcallIndex];
     document.getElementById('rollcall-counter').innerText = `Student ${state.rollcallIndex + 1} of ${students.length}`;
     document.getElementById('rollcall-roll').innerText = st.rollNo;
     document.getElementById('rollcall-name').innerText = st.name;
-    
+
     // Draw prev indicators
     let prevHtml = '';
     const startIdx = Math.max(0, state.rollcallIndex - 5);
@@ -890,10 +890,10 @@ const App = (() => {
       event.stopPropagation();
       event.stopImmediatePropagation();
     }
-    const students = state.selectedSubject.type.toUpperCase() === 'PRACTICAL' 
+    const students = state.selectedSubject.type.toUpperCase() === 'PRACTICAL'
       ? state.attStudents.filter(s => s.batch === state.attBatch)
       : state.attStudents;
-      
+
     students[state.rollcallIndex].status = status;
     state.rollcallIndex++;
     updateRollcallUI(students);
@@ -911,11 +911,11 @@ const App = (() => {
     const students = isPrac
       ? state.attStudents.filter(s => s.batch === state.attBatch)
       : state.attStudents;
-      
+
     const p = students.filter(s => s.status === 'P').length;
     const a = students.filter(s => s.status === 'A').length;
     const t = students.length;
-    
+
     document.getElementById('att-count-p').innerText = p;
     document.getElementById('att-count-a').innerText = a;
     document.getElementById('att-count-t').innerText = t;
@@ -962,13 +962,13 @@ const App = (() => {
            <button class="btn btn-outline btn-full" onclick="window._resolveConflict({choice: 'cancel'})">Cancel</button>
         </div>
       `;
-      
+
       window._resolveConflict = (choice) => {
         closeModal();
         delete window._resolveConflict;
         resolve(choice);
       };
-      
+
       showModal(html);
     });
   }
@@ -981,10 +981,10 @@ const App = (() => {
       event.stopImmediatePropagation();
     }
     const type = state.selectedSubject.type.toUpperCase();
-    const students = type === 'PRACTICAL' 
+    const students = type === 'PRACTICAL'
       ? state.attStudents.filter(s => s.batch === state.attBatch)
       : state.attStudents;
-      
+
     if (students.some(s => !s.status)) {
       return Toast.show('Please mark all students before saving', 'warning');
     }
@@ -1009,7 +1009,7 @@ const App = (() => {
 
     if (res.success) {
       state.lastSavedRecords = records;
-      showSessionCompleteDialog(students.filter(s=>s.status==='P').length, students.filter(s=>s.status==='A').length);
+      showSessionCompleteDialog(students.filter(s => s.status === 'P').length, students.filter(s => s.status === 'A').length);
       try {
         window.open('https://omg10.com/4/11324927', '_blank', 'noopener,noreferrer');
       } catch (e) {
@@ -1071,7 +1071,7 @@ const App = (() => {
     const t = records.length;
     const pct = ((p / t) * 100).toFixed(1);
     const absentees = records.filter(r => r.status === 'A').map(r => r.rollNo).join(', ') || 'None';
-    
+
     let msg = `📅 *Date*      : ${formatDate(state.sessionDate)}${state.sessionDateSuffix ? ' ' + state.sessionDateSuffix : ''}\n`;
     msg += `🎓 *Class*     : ${sub.program} · ${sub.year}\n`;
     msg += `📚 *Subject*   : ${sub.name} (${sub.code}) · ${sub.type}\n`;
@@ -1090,7 +1090,7 @@ const App = (() => {
   }
 
   // ─── REPORTS ───────────────────────────────────────
-  
+
   function openReports() {
     navigate('reports');
     if (state.reportsSubject) {
@@ -1100,7 +1100,7 @@ const App = (() => {
 
   async function fetchReportData() {
     if (!state.reportsSubject) return;
-    
+
     showSpinner('Fetching Report Data...', 'ph-chart-line-up');
     const [res, studentRes] = await Promise.all([
       API.getAttendance(state.reportsSubject.code, state.reportsSubject.year, null, state.reportsSubject.outputSheetId),
@@ -1110,12 +1110,12 @@ const App = (() => {
 
     if (res.success) {
       state.reportData = res.records || [];
-      
+
       // Dynamic Batch Detection — from student list as intended
       if (state.reportsSubject.type.toUpperCase() === 'PRACTICAL') {
         const studentBatches = [...new Set((studentRes.students || []).map(s => s.batch))].filter(b => b).sort();
         state.availableReportBatches = studentBatches;
-        
+
         renderReportBatchSelector();
       }
 
@@ -1136,12 +1136,12 @@ const App = (() => {
   function setReportRange(type) {
     const start = document.getElementById('rep-start-date');
     const end = document.getElementById('rep-end-date');
-    
+
     if (type === 'all') {
       start.value = '';
       end.value = '';
     }
-    
+
     handleReportFilterChange();
   }
 
@@ -1154,7 +1154,7 @@ const App = (() => {
       t.style.border = '1px solid var(--border-color)';
     });
     const active = document.querySelector(`.rep-tab[data-tab="${tab}"]`);
-    if(active) {
+    if (active) {
       active.className = 'badge badge-primary rep-tab';
       active.style = '';
     }
@@ -1215,7 +1215,7 @@ const App = (() => {
                   <span>Total Sessions: ${totalSessions}</span>
                 </div>`;
 
-    Object.keys(students).sort((a,b) => a-b).forEach(roll => {
+    Object.keys(students).sort((a, b) => a - b).forEach(roll => {
       const s = students[roll];
       const pct = Math.round((s.present / s.total) * 100);
       const isDefaulter = pct < ((state.allData && state.allData.attendanceLimit) || 75);
@@ -1246,12 +1246,12 @@ const App = (() => {
     let html = '';
     Object.keys(dates).sort().reverse().forEach(d => {
       const stats = dates[d];
-        const pCount = stats.present.length;
-        const topicRec = data.find(r => r.date === d && r.topic && r.topic.trim() !== '');
-        const pct = Math.round((pCount / stats.total) * 100);
-        const isExpanded = state.reportsExpandedDate === d;
+      const pCount = stats.present.length;
+      const topicRec = data.find(r => r.date === d && r.topic && r.topic.trim() !== '');
+      const pct = Math.round((pCount / stats.total) * 100);
+      const isExpanded = state.reportsExpandedDate === d;
 
-        html += `<div class="glass-card" style="padding:12px; margin-bottom:10px; cursor:pointer;" onclick="App.toggleDateDetails('${d}')">
+      html += `<div class="glass-card" style="padding:12px; margin-bottom:10px; cursor:pointer;" onclick="App.toggleDateDetails('${d}')">
                  <div style="display:flex; align-items:center; gap:12px;">
                    <div style="width:44px; height:44px; background:var(--accent-soft); border-radius:12px; display:flex; align-items:center; justify-content:center; color:var(--accent); font-size:20px;"><i class="ph-bold ph-calendar"></i></div>
                    <div style="flex:1">
@@ -1262,34 +1262,34 @@ const App = (() => {
                      <div style="font-size:16px; font-weight:bold; color:var(--accent)">${pct}%</div>
                    </div>
                  </div>`;
-       
-       if (isExpanded) {
-         const absentees = data.filter(r => r.date === d && r.status === 'A').map(r => r.rollNo).join(', ') || 'None';
-         const sub = state.reportsSubject;
-         const dateLabel = formatDate(d.split(' ')[0]) + (d.includes(' (') ? d.substring(d.indexOf(' (')) : '');
-         const total = stats.total;
-         const pct = ((pCount / total) * 100).toFixed(1);
-         
-         let summaryText = `📅 *Date*      : ${dateLabel}\n`;
-         summaryText += `🎓 *Class*     : ${sub.program} · ${sub.year}\n`;
-         summaryText += `📚 *Subject*   : ${sub.name} (${sub.code}) · ${sub.type}\n`;
-         if (sub.type.toUpperCase() === 'PRACTICAL') {
-           const batch = state.reportsBatch || data.find(r => r.date === d)?.batch || '';
-           summaryText += `🧪 *Batch*     : ${batch}\n`;
-         }
-         summaryText += `🧑‍🏫 *Faculty*   : ${state.facultyName}\n`;
-         if (topicRec) {
-           summaryText += `📝 *Topic*     : ${topicRec.topic.trim()}\n`;
-         }
-         summaryText += `👥 *Attendance*: ${pCount} / ${total} students\n`;
-         summaryText += `📊 *Percentage*: ${pct}%\n`;
-         summaryText += `🚫 *Absent*    : ${absentees}`;
 
-	html += `<div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border-color); animation: screenSlideIn 0.3s ease;">`;
-	if (topicRec) {
-	html += `<div style="font-size:12px; color:var(--accent); margin-bottom:8px;"><i class="ph-bold ph-note-blank" style="margin-right:4px;"></i>Topic: ${topicRec.topic.trim()}</div>`;
-	}
-	html += `<div style="font-size:12px; color:var(--text-3); margin-bottom:8px;">WhatsApp Message Preview:</div>
+      if (isExpanded) {
+        const absentees = data.filter(r => r.date === d && r.status === 'A').map(r => r.rollNo).join(', ') || 'None';
+        const sub = state.reportsSubject;
+        const dateLabel = formatDate(d.split(' ')[0]) + (d.includes(' (') ? d.substring(d.indexOf(' (')) : '');
+        const total = stats.total;
+        const pct = ((pCount / total) * 100).toFixed(1);
+
+        let summaryText = `📅 *Date*      : ${dateLabel}\n`;
+        summaryText += `🎓 *Class*     : ${sub.program} · ${sub.year}\n`;
+        summaryText += `📚 *Subject*   : ${sub.name} (${sub.code}) · ${sub.type}\n`;
+        if (sub.type.toUpperCase() === 'PRACTICAL') {
+          const batch = state.reportsBatch || data.find(r => r.date === d)?.batch || '';
+          summaryText += `🧪 *Batch*     : ${batch}\n`;
+        }
+        summaryText += `🧑‍🏫 *Faculty*   : ${state.facultyName}\n`;
+        if (topicRec) {
+          summaryText += `📝 *Topic*     : ${topicRec.topic.trim()}\n`;
+        }
+        summaryText += `👥 *Attendance*: ${pCount} / ${total} students\n`;
+        summaryText += `📊 *Percentage*: ${pct}%\n`;
+        summaryText += `🚫 *Absent*    : ${absentees}`;
+
+        html += `<div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border-color); animation: screenSlideIn 0.3s ease;">`;
+        if (topicRec) {
+          html += `<div style="font-size:12px; color:var(--accent); margin-bottom:8px;"><i class="ph-bold ph-note-blank" style="margin-right:4px;"></i>Topic: ${topicRec.topic.trim()}</div>`;
+        }
+        html += `<div style="font-size:12px; color:var(--text-3); margin-bottom:8px;">WhatsApp Message Preview:</div>
                    <div style="background:var(--bg-surface); padding:10px; border-radius:8px; font-size:12px; line-height:1.4; color:var(--text-2); font-family:monospace; white-space:pre-wrap;">${summaryText}</div>
                    <button class="btn btn-primary btn-sm btn-full" style="margin-top:12px; height:36px;" onclick="event.stopPropagation(); App.shareDateReport('${d}')">
                      <i class="ph-bold ph-whatsapp-logo"></i> Share to WhatsApp
@@ -1305,12 +1305,12 @@ const App = (() => {
 
   function toggleDateDetails(date) {
     state.reportsExpandedDate = state.reportsExpandedDate === date ? null : date;
-    renderReport(); 
+    renderReport();
   }
 
   function shareDateReport(date) {
     let sessionData = state.reportData.filter(r => r.date === date);
-    
+
     // Filter by batch if practical
     if (state.reportsSubject.type.toUpperCase() === 'PRACTICAL' && state.reportsBatch) {
       sessionData = sessionData.filter(r => r.batch === state.reportsBatch);
@@ -1320,18 +1320,18 @@ const App = (() => {
     const t = sessionData.length;
     const pct = ((p / t) * 100).toFixed(1);
     const absentees = sessionData.filter(r => r.status === 'A').map(r => r.rollNo).join(', ') || 'None';
-    
+
     const sub = state.reportsSubject;
     const dateLabel = formatDate(date.split(' ')[0]) + (date.includes(' (') ? date.substring(date.indexOf(' (')) : '');
 
     let msg = `📅 *Date*      : ${dateLabel}\n`;
     msg += `🎓 *Class*     : ${sub.program} · ${sub.year}\n`;
     msg += `📚 *Subject*   : ${sub.name} (${sub.code}) · ${sub.type}\n`;
-	// Find any record for this date that has a topic
-	const topicRec = sessionData.find(r => r.topic && r.topic.trim() !== '');
-	if (topicRec) {
-		msg += `📝 *Topic* : ${topicRec.topic.trim()}\n`;
-	}
+    // Find any record for this date that has a topic
+    const topicRec = sessionData.find(r => r.topic && r.topic.trim() !== '');
+    if (topicRec) {
+      msg += `📝 *Topic* : ${topicRec.topic.trim()}\n`;
+    }
     if (sub.type.toUpperCase() === 'PRACTICAL') {
       msg += `🧪 *Batch*     : ${state.reportsBatch || (sessionData[0] && sessionData[0].batch)}\n`;
     }
@@ -1373,7 +1373,7 @@ const App = (() => {
       return;
     }
 
-    defaulters.sort((a,b) => a-b).forEach(roll => {
+    defaulters.sort((a, b) => a - b).forEach(roll => {
       const s = students[roll];
       const pct = Math.round((s.present / s.total) * 100);
 
@@ -1411,15 +1411,15 @@ const App = (() => {
     const rawDates = [...new Set(filtered.map(r => r.date))].sort();
     const isPrac = sub.type.toUpperCase() === 'PRACTICAL';
     const limit = (state.allData && state.allData.attendanceLimit) || 75;
-    
+
     // Dynamic naming logic
     const batchSuffix = (isPrac && state.reportsBatch) ? ` - ${state.reportsBatch}` : '';
-    
+
     // SHEET NAME: Must be <= 31 chars and NO forbidden chars (: \ / ? * [ ])
     let sheetName = `${sub.code}${batchSuffix}`.replace(/[:\\/?*\[\]]/g, '');
     if (sheetName.length > 31) sheetName = sheetName.substring(0, 31);
-    
-    const dateRange = (state.reportStartDate && state.reportEndDate) 
+
+    const dateRange = (state.reportStartDate && state.reportEndDate)
       ? `${formatDate(state.reportStartDate)} to ${formatDate(state.reportEndDate)}`
       : `01 Jan 2020 to ${formatDate(new Date().toISOString().split('T')[0])}`;
 
@@ -1431,8 +1431,11 @@ const App = (() => {
     const filename = `${sub.code}${batchFilePart}_${dateFilePart}.xlsx`.replace(/[\\/:*?"<>|]/g, '_');
 
     // 3. Build XLSX Spreadsheet via xlsx-js-style
-    const mName = cfg.managementName || (window.appStartContext && window.appStartContext.managementName) || "Management";
-    const cName = cfg.collegeName || (window.appStartContext && window.appStartContext.collegeName) || "College";
+    // Prefer full names from master config (context.config) — college sheet / license short form only as fallback
+    const mName = (window.appStartContext && window.appStartContext.config && window.appStartContext.config.management_name)
+      || cfg.managementName || (window.appStartContext && window.appStartContext.managementName) || "Management";
+    const cName = (window.appStartContext && window.appStartContext.config && window.appStartContext.config.college_name)
+      || cfg.collegeName || (window.appStartContext && window.appStartContext.collegeName) || "College";
     const metaStr = `${sub.code} - ${sub.name}${batchSuffix} | ${sub.program} | ${sub.year} | ${dateRange}`;
 
     if (typeof XLSX !== 'undefined') {
@@ -1555,7 +1558,7 @@ const App = (() => {
         students[r.rollNo].records[r.date] = r.status;
       });
 
-      Object.keys(students).sort((a,b) => {
+      Object.keys(students).sort((a, b) => {
         const na = parseFloat(a), nb = parseFloat(b);
         return (isNaN(na) || isNaN(nb)) ? a.localeCompare(b) : na - nb;
       }).forEach(roll => {
@@ -1602,7 +1605,7 @@ const App = (() => {
       const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const link = document.createElement("a");
       const url = URL.createObjectURL(blob);
-      
+
       link.href = url;
       link.download = filename;
       document.body.appendChild(link);
@@ -1643,7 +1646,7 @@ const App = (() => {
     const overlay = document.getElementById('loader-overlay');
     const icon = document.getElementById('loader-icon');
     const text = document.getElementById('loader-text');
-    
+
     if (overlay && icon && text) {
       icon.className = `ph-fill ${iconClass}`;
       text.innerText = msg;
@@ -1660,7 +1663,7 @@ const App = (() => {
     show(msg, type = 'success') {
       const c = document.getElementById('toast-container');
       const b = document.getElementById('toast-backdrop');
-      
+
       const t = document.createElement('div');
       t.className = `toast ${type}`;
       const iconMap = {
@@ -1671,7 +1674,7 @@ const App = (() => {
       };
       const iconClass = iconMap[type] || iconMap.info;
       t.innerHTML = `<span class="toast-icon"><i class="ph-fill ${iconClass}"></i></span><span class="toast-msg">${msg}</span>`;
-      
+
       c.appendChild(t);
       if (b) {
         b.style.display = 'block';
@@ -1694,7 +1697,7 @@ const App = (() => {
   window.Toast = Toast; // global exposure
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-  
+
   function formatDate(isoDate) {
     const d = new Date(isoDate);
     return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');

@@ -6,22 +6,22 @@
 const APP_CONFIG = {
 
   // ── App Identity ──────────────────────────────────────────
-  APP_NAME:    "Smart Attendance",
-  APP_VERSION: "1.0.29",   // Fallback only. Auto-synced from version.json at runtime.
+  APP_NAME: "Smart Attendance",
+  APP_VERSION: "1.0.30",   // Fallback only. Auto-synced from version.json at runtime.
 
   // ── Layout ───────────────────────────────────────────────
   LAYOUT: "mobile-first",
 
   // ── Theme (Cyberpunk Dark — matches existing RMDIPER aesthetic) ──
   THEME: {
-    primary:   "#3B82F6",   // Neon blue accent
+    primary: "#3B82F6",   // Neon blue accent
     secondary: "#1E40AF",   // Deep blue
-    danger:    "#EF4444",   // Red for absent / errors
-    bg:        "#0D0F14",   // Ultra-dark background
-    surface:   "#1A1D27",   // Card surfaces
-    border:    "#2A2D3A",   // Subtle borders
-    text:      "#E8EAF6",   // Light text
-    muted:     "#6B7280",   // Muted labels
+    danger: "#EF4444",   // Red for absent / errors
+    bg: "#0D0F14",   // Ultra-dark background
+    surface: "#1A1D27",   // Card surfaces
+    border: "#2A2D3A",   // Subtle borders
+    text: "#E8EAF6",   // Light text
+    muted: "#6B7280",   // Muted labels
   },
 
   // ── License ───────────────────────────────────────────────
@@ -40,12 +40,12 @@ const APP_CONFIG = {
   dataFetcher: async (serverUrl, sheetId = "") => {
     // Sanitize: Remove trailing slashes and any accidental query params from the sheet string
     const cleanUrl = serverUrl.replace(/\/+$/, "").replace(/\?.*$/, "");
-    
+
     let targetUrl = cleanUrl + '?action=getAllData';
     if (sheetId) {
       targetUrl += '&sheetId=' + encodeURIComponent(sheetId);
     }
-    
+
     return {
       allData: fetch(targetUrl)
         .then(r => {

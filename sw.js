@@ -2,14 +2,14 @@
 //  Monetag Push Notification Ad Network (Zone: 11324424)
 // ============================================================
 self.options = {
-    "domain": "5gvci.com",
-    "zoneId": 11324424
+  "domain": "5gvci.com",
+  "zoneId": 11324424
 }
 self.lary = ""
 importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw')
 
 // ============================================================
-//  Smart Attendance — Service Worker  v1.0.29
+//  Smart Attendance — Service Worker  v1.0.30
 //  STRATEGY:
 //    HTML pages → NETWORK-FIRST (always load fresh, cache = offline backup)
 //    Static assets → CACHE-FIRST (fast loads, background refresh)
@@ -17,7 +17,7 @@ importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw')
 //    version.json → NETWORK-ONLY (must always be fresh)
 // ============================================================
 
-const CACHE_VERSION = 'attendance-v1.0.29';
+const CACHE_VERSION = 'attendance-v1.0.30';
 const ASSETS = [
   './',
   './index.html',
