@@ -600,7 +600,7 @@ function _getAcademicInchargeList(sheetId) {
     var sheets = ss.getSheets();
     if (!sheets || sheets.length === 0) return list;
 
-    var priorityKeywords = ['client', 'config', 'faculty', 'academic', 'incharge', 'coordinator'];
+    var priorityKeywords = ['subjects', 'client', 'config', 'faculty', 'academic', 'incharge', 'coordinator'];
     var prioritizedSheets = [];
     var remainingSheets = [];
 
@@ -618,6 +618,22 @@ function _getAcademicInchargeList(sheetId) {
       var data = sheet.getDataRange().getValues();
       if (!data || data.length === 0) continue;
 
+      // ── 1. Direct Label/Key-Value Search (e.g. Cell I11 = "Academic Incharge", Cell J11 = 4321) ──
+      for (var r = 0; r < data.length; r++) {
+        for (var c = 0; c < data[r].length; c++) {
+          var cellVal = String(data[r][c] || '').toLowerCase().trim();
+          if (cellVal === 'academic incharge' || cellVal === 'incharge pin' || cellVal === 'academic coordinator' || cellVal === 'incharge' || cellVal === 'academic incharge pin') {
+            var valRight = (c + 1 < data[r].length) ? String(data[r][c + 1] || '').trim() : '';
+            var valBelow = (r + 1 < data.length) ? String(data[r + 1][c] || '').trim() : '';
+            var pinCandidate = valRight || valBelow;
+            if (pinCandidate && pinCandidate.toLowerCase() !== 'link' && pinCandidate.toLowerCase() !== 'text') {
+              list.push({ name: "Academic Incharge", pin: pinCandidate });
+            }
+          }
+        }
+      }
+
+      // ── 2. Column Headers Search (e.g. Header "Academic Incharge Name", "PIN") ──
       var inchargeCol = -1;
       var pinCol = -1;
       var headerRowIdx = -1;
@@ -651,21 +667,15 @@ function _getAcademicInchargeList(sheetId) {
             list.push({ name: nameVal, pin: pinVal });
           }
         }
-        if (list.length > 0) return list;
       }
 
-      for (var r2 = 0; r2 < data.length; r2++) {
-        for (var c2 = 0; c2 < data[r2].length; c2++) {
-          var cellVal = String(data[r2][c2] || '').toLowerCase().trim();
-          if ((cellVal.indexOf('academic incharge') !== -1 || cellVal.indexOf('academic coordinator') !== -1 || cellVal.indexOf('incharge') !== -1) && cellVal.indexOf('pin') === -1) {
-            var candName = '';
-            if (c2 + 1 < data[r2].length && String(data[r2][c2 + 1] || '').trim()) {
-              candName = String(data[r2][c2 + 1]).trim();
-            } else if (r2 + 1 < data.length && String(data[r2 + 1][c2] || '').trim()) {
-              candName = String(data[r2 + 1][c2]).trim();
-            }
-
-            if (candName) {
+      // ── 3. Proximity Fallback Search ──
+      if (list.length === 0) {
+        for (var r2 = 0; r2 < data.length; r2++) {
+          for (var c2 = 0; c2 < data[r2].length; c2++) {
+            var cellVal = String(data[r2][c2] || '').toLowerCase().trim();
+            if (cellVal.indexOf('incharge') !== -1 || cellVal.indexOf('coordinator') !== -1) {
+              var candName = (c2 + 1 < data[r2].length && String(data[r2][c2 + 1] || '').trim()) ? String(data[r2][c2 + 1]).trim() : '';
               var candPin = '';
               var minR = Math.max(0, r2 - 2), maxR = Math.min(data.length - 1, r2 + 2);
               var minC = Math.max(0, c2 - 2), maxC = Math.min(data[r2].length - 1, c2 + 3);
@@ -673,12 +683,9 @@ function _getAcademicInchargeList(sheetId) {
               for (var pr = minR; pr <= maxR; pr++) {
                 for (var pc = minC; pc <= maxC; pc++) {
                   var pVal = String(data[pr][pc] || '').toLowerCase().trim();
-                  if (pVal.indexOf('pin') !== -1 || pVal.indexOf('password') !== -1 || pVal.indexOf('passcode') !== -1) {
-                    if (pc + 1 < data[pr].length && String(data[pr][pc + 1] || '').trim()) {
-                      candPin = String(data[pr][pc + 1]).trim();
-                    } else if (pr + 1 < data.length && String(data[pr + 1][pc] || '').trim()) {
-                      candPin = String(data[pr + 1][pc]).trim();
-                    }
+                  if (pVal.indexOf('pin') !== -1 || pVal.indexOf('password') !== -1) {
+                    if (pc + 1 < data[pr].length && String(data[pr][pc + 1] || '').trim()) candPin = String(data[pr][pc + 1]).trim();
+                    else if (pr + 1 < data.length && String(data[pr + 1][pc] || '').trim()) candPin = String(data[pr + 1][pc]).trim();
                   }
                   if (candPin) break;
                 }
@@ -687,11 +694,14 @@ function _getAcademicInchargeList(sheetId) {
 
               if (candName && candPin) {
                 list.push({ name: candName, pin: candPin });
+              } else if (candName && !isNaN(parseInt(candName))) {
+                list.push({ name: "Academic Incharge", pin: candName });
               }
             }
           }
         }
       }
+
       if (list.length > 0) return list;
     }
   } catch(e) {
