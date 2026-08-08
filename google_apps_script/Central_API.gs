@@ -103,6 +103,9 @@ function doPost(e) {
       case 'addCustomSyllabusTopic':
         result = addCustomSyllabusTopic(data, sheetId);
         break;
+      case 'uploadAcademicDocument':
+        result = uploadAcademicDocument(data, sheetId);
+        break;
 
       default:
         result = { error: 'Unknown POST action: ' + action };
@@ -1933,5 +1936,78 @@ function sendFCMPushNotification(title, body, topic, customData) {
   } catch (e) {
     Logger.log("FCM Error: " + e.message);
     return { success: false, error: e.message };
+  }
+}
+
+function uploadAcademicDocument(data, sheetId) {
+  var MASTER_CONFIG_ID = "1p3WoC2s-YYqn9ekqkQ72banxAAd-ujlDoFYpv4fkXmk";
+  try {
+    if (!data || !data.fileData || !data.fileName) {
+      return { success: false, error: "Invalid file data or file name." };
+    }
+
+    var targetSpreadsheetId = _resolveCollegeTeachingPlanId(sheetId, data.teachingPlanLink);
+    if (!targetSpreadsheetId) {
+      return { success: false, error: "College Teaching Plan spreadsheet link not configured." };
+    }
+
+    if (targetSpreadsheetId === MASTER_CONFIG_ID) {
+      return { success: false, error: "SECURITY BLOCK: Access to Master Config sheet for Drive upload is prohibited." };
+    }
+
+    var effectiveEmail = "";
+    try { effectiveEmail = Session.getEffectiveUser().getEmail(); } catch(e) {}
+
+    var parentFolder = null;
+    var targetFile = null;
+
+    try {
+      targetFile = DriveApp.getFileById(targetSpreadsheetId);
+      if (targetFile) {
+        var parents = targetFile.getParents();
+        if (parents.hasNext()) {
+          parentFolder = parents.next();
+        }
+      }
+    } catch(e) {
+      return { success: false, error: "Drive Permission Error: Unable to access Teaching Plan folder using Service Account (" + effectiveEmail + ")." };
+    }
+
+    if (!parentFolder) {
+      return { success: false, error: "Drive Permission Error: Parent Google Drive folder for Teaching Plan spreadsheet could not be located." };
+    }
+
+    var academicFolder = _findAcademicFolder(parentFolder);
+    if (!academicFolder) {
+      return {
+        success: false,
+        error: "Folder Not Found / Permission Error: 'Academic Calendars & Timetable' folder NOT FOUND inside '" + parentFolder.getName() + "'. Please create folder 'Academic Calendars & Timetable' inside college Drive and share with " + (effectiveEmail || "Service Account") + "."
+      };
+    }
+
+    var bytes = Utilities.base64Decode(data.fileData);
+    var blob = Utilities.newBlob(bytes, data.mimeType || 'application/pdf', data.fileName);
+
+    var uploadedFile = academicFolder.createFile(blob);
+    try {
+      uploadedFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch(e) {}
+
+    var thumb = '';
+    try { thumb = uploadedFile.getThumbnail() ? 'https://drive.google.com/thumbnail?id=' + uploadedFile.getId() + '&sz=w400' : ''; } catch(e) { thumb = 'https://drive.google.com/thumbnail?id=' + uploadedFile.getId() + '&sz=w400'; }
+
+    return {
+      success: true,
+      file: {
+        id: uploadedFile.getId(),
+        name: uploadedFile.getName(),
+        mimeType: uploadedFile.getMimeType(),
+        webViewLink: uploadedFile.getUrl(),
+        thumbnailLink: thumb,
+        lastUpdated: uploadedFile.getLastUpdated().toISOString()
+      }
+    };
+  } catch (err) {
+    return { success: false, error: "Drive Upload Failed: " + err.message };
   }
 }
