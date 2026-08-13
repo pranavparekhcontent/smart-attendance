@@ -163,7 +163,7 @@ const API = (() => {
 
     if (navigator.onLine) {
       try {
-        const data = await _withTimeout(_get('getAllData'), 12000);
+        const data = await _withTimeout(_get('getAllData'), 25000);
         if (data && (data.success || data.teachers)) {
           try { sessionStorage.setItem('session_data_fetched', 'true'); } catch(e) {}
           _setCache('allData', data);
