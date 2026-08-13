@@ -1235,7 +1235,12 @@ function getAttendance(code, year, date, outputSheetId, sheetId) {
   }
   var result = _getAttendanceUncached(code, year, date, outputSheetId, sheetId);
   if (result && result.success) {
-    try { cache.put(cacheKey, JSON.stringify(result), 300); } catch(ce) {}
+    try {
+      var jsonStr = JSON.stringify(result);
+      if (jsonStr.length < 95000) {
+        cache.put(cacheKey, jsonStr, 300);
+      }
+    } catch(ce) {}
   }
   return result;
 }

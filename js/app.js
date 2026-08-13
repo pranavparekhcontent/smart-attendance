@@ -158,10 +158,25 @@ const App = (() => {
       document.getElementById('dash-faculty-name').innerText = savedName;
       document.getElementById('dash-avatar').innerText = savedName.charAt(0).toUpperCase();
       document.getElementById('dash-date').innerText = formatDate(state.sessionDate);
+      preloadFacultyData(savedName);
       navigate('faculty-dash');
     } else {
       navigate('login');
     }
+  }
+
+  function preloadFacultyData(facultyName) {
+    if (!state.allData || !state.allData.subjects || !facultyName) return;
+    const mySubjects = state.allData.subjects.filter(s => {
+      if (!s.faculty) return false;
+      const facs = s.faculty.split(',').map(f => f.trim().toLowerCase());
+      return facs.includes(facultyName.toLowerCase());
+    });
+    mySubjects.forEach(s => {
+      if (s.teachingPlanLink) {
+        API.getSyllabusPoints(s.teachingPlanLink, s.code).catch(() => {});
+      }
+    });
   }
 
   // ─── NAVIGATION ────────────────────────────────────
@@ -263,6 +278,7 @@ const App = (() => {
       document.getElementById('dash-faculty-name').innerText = name;
       document.getElementById('dash-avatar').innerText = name.charAt(0).toUpperCase();
       document.getElementById('dash-date').innerText = formatDate(state.sessionDate);
+      preloadFacultyData(name);
       navigate('faculty-dash');
       Toast.show(`Welcome ${name}!`, 'success');
     } else {
@@ -591,34 +607,37 @@ const App = (() => {
     const taughtTopics = new Set();
 
     if (state.selectedSubject.teachingPlanLink) {
-      showSpinner('Fetching Syllabus & History...', 'ph-book-open');
-      try {
-        const [res, attRes] = await Promise.all([
-          API.getSyllabusPoints(state.selectedSubject.teachingPlanLink, state.selectedSubject.code),
-          API.getAttendance(state.selectedSubject.code, state.selectedSubject.year, null, state.selectedSubject.outputSheetId).catch(() => ({ success: false }))
-        ]);
+      const sylCacheKey = 'syl_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.teachingPlanLink || '');
+      const cachedSyl = (window.API && API._getCache) ? API._getCache(sylCacheKey) : null;
 
-        if (res && res.success && res.points && res.points.length > 0) {
-          syllabusPoints = res.points;
-          hasSyllabusPoints = true;
+      if (cachedSyl && cachedSyl.points && cachedSyl.points.length > 0) {
+        syllabusPoints = cachedSyl.points;
+        hasSyllabusPoints = true;
+      } else {
+        showSpinner('Fetching Syllabus...', 'ph-book-open');
+        try {
+          const res = await API.getSyllabusPoints(state.selectedSubject.teachingPlanLink, state.selectedSubject.code);
+          if (res && res.success && res.points && res.points.length > 0) {
+            syllabusPoints = res.points;
+            hasSyllabusPoints = true;
+          }
+        } catch (e) {
+          console.warn('Error fetching syllabus points:', e);
+        } finally {
+          hideSpinner();
         }
-
-        if (attRes && attRes.success && attRes.records) {
-          attRes.records.forEach(rec => {
-            if (rec.topic && rec.topic.trim()) {
-              const fullTopic = rec.topic.trim().toLowerCase();
-              taughtTopics.add(fullTopic);
-              // Also split by commas in case multiple topics were taught together in one session
-              rec.topic.split(',').forEach(part => {
-                taughtTopics.add(part.trim().toLowerCase());
-              });
-            }
-          });
-        }
-      } catch (e) {
-        console.warn('Error fetching syllabus points / history:', e);
       }
-      hideSpinner();
+
+      // Check taught topics from local cache without blocking UI
+      const attCacheKey = 'att_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.year || '') + '__' + (state.selectedSubject.outputSheetId || '');
+      const cachedAtt = (window.API && API._getCache) ? API._getCache(attCacheKey) : null;
+      if (cachedAtt && cachedAtt.records) {
+        cachedAtt.records.forEach(rec => {
+          if (rec.topic && rec.topic.trim()) {
+            rec.topic.split(',').forEach(part => taughtTopics.add(part.trim().toLowerCase()));
+          }
+        });
+      }
     }
 
     if (hasSyllabusPoints) {
