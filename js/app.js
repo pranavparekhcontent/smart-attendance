@@ -649,6 +649,20 @@ const App = (() => {
     });
   }
 
+  function _getOutputSheetId(subject) {
+    if (subject && subject.outputSheetId) return subject.outputSheetId;
+    if (state.allData && state.allData.config && state.allData.config.outputSheetId) return state.allData.config.outputSheetId;
+    if (window.appStartContext) {
+      const cfg = window.appStartContext.config || {};
+      const possibleKeys = ['output_sheet_id', 'output sheet id', 'output_sheet', 'output sheet', 'outputsheetid', 'output_sheet_url', 'output sheet link', 'output sheet url', 'sheet_id', 'sheet id'];
+      for (const k of possibleKeys) {
+        if (cfg[k]) return API.extractSheetId(cfg[k]);
+      }
+      if (window.appStartContext.sheetId) return window.appStartContext.sheetId;
+    }
+    return '';
+  }
+
   async function startAttendanceFlow() {
     if (!state.selectedSubject) return Toast.show('Please select a subject first', 'warning');
 
@@ -659,44 +673,41 @@ const App = (() => {
 
     if (state.selectedSubject.teachingPlanLink) {
       const sylCacheKey = 'syl_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.teachingPlanLink || '');
-      const cachedSyl = (window.API && API._getCache) ? API._getCache(sylCacheKey) : null;
+      let cachedSyl = (window.API && API._getCache) ? API._getCache(sylCacheKey) : null;
 
-      const taughtCacheKey = 'taught_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.outputSheetId || '');
-      const cachedTaught = (window.API && API._getCache) ? API._getCache(taughtCacheKey) : null;
+      const outId = _getOutputSheetId(state.selectedSubject);
+      const cleanOutId = (window.API && API.extractSheetId) ? API.extractSheetId(outId) : outId;
+      const taughtCacheKey = 'taught_' + (state.selectedSubject.code || '') + '_' + (cleanOutId || '');
+      let cachedTaught = (window.API && API._getCache) ? API._getCache(taughtCacheKey) : null;
 
-      if (cachedTaught && cachedTaught.topics) {
+      if (cachedTaught && cachedTaught.topics && cachedTaught.topics.length > 0) {
         cachedTaught.topics.forEach(t => taughtTopics.add(String(t).trim().toLowerCase()));
       }
 
-      if (cachedSyl && cachedSyl.points && cachedSyl.points.length > 0) {
-        syllabusPoints = cachedSyl.points;
-        hasSyllabusPoints = true;
-      } else {
-        showSpinner('Fetching Syllabus...', 'ph-book-open');
+      // If either syllabus or taught topics is missing in local cache, fetch them together!
+      if (!cachedSyl || !cachedSyl.points || cachedSyl.points.length === 0 || !cachedTaught || !cachedTaught.topics || cachedTaught.topics.length === 0) {
+        showSpinner('Fetching Syllabus & Topics...', 'ph-book-open');
         try {
-          const res = await API.getSyllabusPoints(state.selectedSubject.teachingPlanLink, state.selectedSubject.code);
-          if (res && res.success && res.points && res.points.length > 0) {
-            syllabusPoints = res.points;
+          const [sylRes, taughtRes] = await Promise.allSettled([
+            (!cachedSyl || !cachedSyl.points || cachedSyl.points.length === 0) ? API.getSyllabusPoints(state.selectedSubject.teachingPlanLink, state.selectedSubject.code) : Promise.resolve(cachedSyl),
+            (!cachedTaught || !cachedTaught.topics || cachedTaught.topics.length === 0) ? API.getTaughtTopics(state.selectedSubject.code, cleanOutId) : Promise.resolve(cachedTaught)
+          ]);
+
+          if (sylRes.status === 'fulfilled' && sylRes.value && sylRes.value.points) {
+            syllabusPoints = sylRes.value.points;
             hasSyllabusPoints = true;
           }
+          if (taughtRes.status === 'fulfilled' && taughtRes.value && taughtRes.value.topics) {
+            taughtRes.value.topics.forEach(t => taughtTopics.add(String(t).trim().toLowerCase()));
+          }
         } catch (e) {
-          console.warn('Error fetching syllabus points:', e);
+          console.warn('Error fetching syllabus points / taught topics:', e);
         } finally {
           hideSpinner();
         }
-      }
-
-      // Always refresh taught topics in background (non-blocking)
-      if (state.selectedSubject.outputSheetId) {
-        API.getTaughtTopics(state.selectedSubject.code, state.selectedSubject.outputSheetId)
-          .then(tt => {
-            if (tt && tt.topics) {
-              tt.topics.forEach(t => taughtTopics.add(String(t).trim().toLowerCase()));
-              if (typeof window._updateTaughtChips === 'function') {
-                window._updateTaughtChips(taughtTopics);
-              }
-            }
-          }).catch(() => {});
+      } else {
+        syllabusPoints = cachedSyl.points;
+        hasSyllabusPoints = true;
       }
     }
 

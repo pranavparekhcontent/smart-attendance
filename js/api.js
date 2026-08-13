@@ -289,16 +289,23 @@ const API = (() => {
    * Get taught topics for a subject from output sheet (lightweight)
    */
   async function getTaughtTopics(code, outputSheetId) {
-    const cacheKey = 'taught_' + (code || '') + '_' + (outputSheetId || '');
+    if (!outputSheetId) {
+      if (window.appStartContext) {
+        const cfg = window.appStartContext.config || {};
+        outputSheetId = cfg.output_sheet_id || cfg.output_sheet || cfg['output sheet id'] || cfg['output sheet'] || window.appStartContext.sheetId || '';
+      }
+    }
+    const cleanOutId = extractSheetId(outputSheetId);
+    const cacheKey = 'taught_' + (code || '') + '_' + (cleanOutId || '');
     const cached = _getCache(cacheKey);
-    if (cached && cached.topics) {
+    if (cached && cached.topics && cached.topics.length > 0) {
       return cached;
     }
 
     if (navigator.onLine) {
       try {
         const params = { code: code || '' };
-        if (outputSheetId) params.outputSheetId = outputSheetId;
+        if (cleanOutId) params.outputSheetId = cleanOutId;
         const data = await _withTimeout(_get('getTaughtTopics', params), 10000);
         if (data && data.success && data.topics) {
           _setCache(cacheKey, data);
