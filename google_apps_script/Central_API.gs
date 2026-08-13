@@ -818,6 +818,15 @@ function academicInchargeLogin(name, pin, sheetId) {
 }
 
 function getInchargeDashboard(sheetId) {
+  var cache = CacheService.getScriptCache();
+  var cacheKey = 'dash_' + sheetId;
+  var cached = cache.get(cacheKey);
+  if (cached) {
+    try {
+      return JSON.parse(cached);
+    } catch(e) {}
+  }
+
   try {
     var ss = _getSpreadsheet(sheetId);
     var ws = ss.getSheetByName('subjects');
@@ -867,37 +876,72 @@ function getInchargeDashboard(sheetId) {
       }
     }
 
-    var maxCodes = Math.min(distinctCodes.length, 80);
+    // Single-pass Teaching Plan batch scanner
     var subjectPlanMap = {};
+    try {
+      var collegeIds = _getCollegeSheetIds(sheetId);
+      var tpId = collegeIds.teachingPlanId;
+      if (tpId) {
+        var tpSs = _getSpreadsheet(tpId);
+        if (tpSs) {
+          var tpSheets = tpSs.getSheets();
+          for (var s = 0; s < tpSheets.length; s++) {
+            var sheet = tpSheets[s];
+            var sheetName = sheet.getName().trim();
+            var parsedSheet = _parseSubjectCode(sheetName);
+            var sheetData = sheet.getDataRange().getValues();
+            if (!sheetData || sheetData.length <= 1) continue;
 
-    for (var c = 0; c < maxCodes; c++) {
-      var code = distinctCodes[c];
-      try {
-        var planRes = getTeachingPlan(code, '', sheetId);
-        if (planRes && planRes.success) {
-          if (!collegeName && planRes.metadata && planRes.metadata.collegeName) {
-            collegeName = planRes.metadata.collegeName;
+            var headerRowIdx = -1;
+            for (var r = 0; r < Math.min(sheetData.length, 25); r++) {
+              var rowStr = sheetData[r].join(' ').toLowerCase();
+              if (rowStr.indexOf('lecture no') !== -1 || rowStr.indexOf('sr. no.') !== -1 || rowStr.indexOf('unit') !== -1 || rowStr.indexOf('details of topic') !== -1 || rowStr.indexOf('syllabus') !== -1) {
+                headerRowIdx = r;
+                break;
+              }
+            }
+            if (headerRowIdx === -1) headerRowIdx = 14;
+
+            var topicsCount = 0;
+            var conductedCount = 0;
+            var colIdxSyllabus = 2;
+            var colIdxExecuted = 4;
+
+            for (var r = headerRowIdx + 1; r < sheetData.length; r++) {
+              var row = sheetData[r];
+              var syllabus = row[colIdxSyllabus] ? String(row[colIdxSyllabus]).trim() : '';
+              if (!syllabus) {
+                for (var c = 0; c < row.length; c++) {
+                  var strCell = String(row[c]).trim();
+                  if (strCell.length > 10 && strCell.indexOf('Total') === -1) {
+                    syllabus = strCell;
+                    break;
+                  }
+                }
+              }
+              if (syllabus && syllabus.indexOf('Total') === -1 && syllabus.indexOf('Signature') === -1) {
+                topicsCount++;
+                var executedDate = row[colIdxExecuted] ? String(row[colIdxExecuted]).trim() : '';
+                if (executedDate) conductedCount++;
+              }
+            }
+
+            var pct = topicsCount > 0 ? Math.round((conductedCount / topicsCount) * 100) : 0;
+            var statsObj = { totalLectures: topicsCount, totalConducted: conductedCount, percent: pct };
+
+            // Match this tab stats to any subject code matching cleanBaseCode
+            for (var c = 0; c < distinctCodes.length; c++) {
+              var code = distinctCodes[c];
+              var parsedCode = _parseSubjectCode(code);
+              if (parsedSheet.cleanBaseCode === parsedCode.cleanBaseCode || sheetName.toLowerCase().indexOf(code.toLowerCase()) !== -1) {
+                subjectPlanMap[code] = statsObj;
+              }
+            }
           }
-          if (!managementName && planRes.metadata && planRes.metadata.managementName) {
-            managementName = planRes.metadata.managementName;
-          }
-
-          var topics = planRes.topics || [];
-          var totalLec = (planRes.metadata && planRes.metadata.totalLectures > 0) ? planRes.metadata.totalLectures : topics.length;
-          var conductedCount = topics.filter(function(t) { return t.executedDate && String(t.executedDate).trim() !== ''; }).length;
-          var pct = totalLec > 0 ? Math.round((conductedCount / totalLec) * 100) : (topics.length > 0 ? Math.round((conductedCount / topics.length) * 100) : 0);
-
-          subjectPlanMap[code] = {
-            totalLectures: totalLec,
-            totalConducted: conductedCount,
-            percent: pct
-          };
-        } else {
-          subjectPlanMap[code] = { totalLectures: 0, totalConducted: 0, percent: 0 };
         }
-      } catch(ex) {
-        subjectPlanMap[code] = { totalLectures: 0, totalConducted: 0, percent: 0 };
       }
+    } catch(tpErr) {
+      Logger.log("Batch teaching plan scan error: " + tpErr.message);
     }
 
     var faculties = [];
@@ -939,7 +983,7 @@ function getInchargeDashboard(sheetId) {
 
     var avgCoverage = grandTotalLectures > 0 ? Math.round((grandTotalConducted / grandTotalLectures) * 100) : 0;
 
-    return {
+    var result = {
       success: true,
       collegeName: collegeName || "Institutional Workspace",
       managementName: managementName || "Academic Management",
@@ -952,6 +996,9 @@ function getInchargeDashboard(sheetId) {
       },
       faculties: faculties
     };
+
+    cache.put(cacheKey, JSON.stringify(result), 900);
+    return result;
   } catch(e) {
     return { success: false, error: e.message };
   }
@@ -966,6 +1013,9 @@ function saveAttendance(records, outputSheetId, collegeName, managementName, she
   if (!outputSheetId) outputSheetId = getOutputSheetId(sheetId);
   var res = updateOutputMatrix(records, outputSheetId, collegeName, managementName, sheetId);
   if (res === true) {
+    try {
+      if (sheetId) CacheService.getScriptCache().remove('dash_' + sheetId);
+    } catch(cErr) {}
     try {
       var code = records[0].code;
       var faculty = records[0].teacher || records[0].faculty || 'Assigned';
