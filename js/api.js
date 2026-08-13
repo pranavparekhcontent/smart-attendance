@@ -409,7 +409,7 @@ const API = (() => {
     const cacheKey = 'taught_' + (code || '') + '_' + (outputSheetId || '');
     if (navigator.onLine) {
       try {
-        const params = { code };
+        const params = { code, sheetId: _getSheetId() };
         if (outputSheetId) params.outputSheetId = outputSheetId;
         const res = await _withTimeout(_get('getTaughtTopics', params), 15000);
         if (res && res.success) {

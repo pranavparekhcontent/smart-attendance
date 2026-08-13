@@ -176,6 +176,9 @@ const App = (() => {
       if (s.teachingPlanLink) {
         API.getSyllabusPoints(s.teachingPlanLink, s.code).catch(() => {});
       }
+      if (s.code || s.outputSheetId) {
+        API.getTaughtTopics(s.code, s.outputSheetId).catch(() => {});
+      }
     });
   }
 
@@ -628,16 +631,13 @@ const App = (() => {
         }
       }
 
-      // Check taught topics from local cache or fetch restricted topic row
-      try {
-        const topicsRes = await API.getTaughtTopics(state.selectedSubject.code, state.selectedSubject.outputSheetId);
-        if (topicsRes && topicsRes.success && topicsRes.topics) {
-          topicsRes.topics.forEach(t => {
-            t.split(',').forEach(part => taughtTopics.add(part.trim().toLowerCase()));
-          });
-        }
-      } catch (e) {
-        console.warn('Error fetching taught topics:', e);
+      // Check taught topics from local cache without blocking UI
+      const topicsCacheKey = 'taught_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.outputSheetId || '');
+      const cachedTopics = (window.API && API._getCache) ? API._getCache(topicsCacheKey) : null;
+      if (cachedTopics && cachedTopics.success && cachedTopics.topics) {
+        cachedTopics.topics.forEach(t => {
+          t.split(',').forEach(part => taughtTopics.add(part.trim().toLowerCase()));
+        });
       }
     }
 
