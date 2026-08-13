@@ -43,9 +43,6 @@ function doGet(e) {
       case 'getAttendance': 
         result = getAttendance(e.parameter.code, e.parameter.year, e.parameter.date, e.parameter.outputSheetId, sheetId); 
         break;
-      case 'getTaughtTopics':
-        result = getTaughtTopics(e.parameter.code, e.parameter.outputSheetId, sheetId);
-        break;
       case 'getSyllabus':
         result = getSyllabus(e.parameter.link, e.parameter.code, sheetId);
         break;
@@ -2235,45 +2232,3 @@ function uploadAcademicDocument(data, sheetId) {
     return { success: false, error: "Drive Upload Failed: " + err.message };
   }
 }
-
-function getTaughtTopics(code, outputSheetId, sheetId) {
-  try {
-    if (outputSheetId === 'undefined' || outputSheetId === 'null') outputSheetId = '';
-    if (!outputSheetId && sheetId) outputSheetId = getOutputSheetId(sheetId);
-    var cleanOutId = extractSpreadsheetId(outputSheetId);
-    if (!cleanOutId && sheetId) cleanOutId = extractSpreadsheetId(getOutputSheetId(sheetId));
-    if (!cleanOutId) return { success: false, error: 'Invalid Output Sheet Link' };
-    var outSs = SpreadsheetApp.openById(cleanOutId);
-    var sheets = outSs.getSheets();
-    var parsedInput = _parseSubjectCode(code);
-    var found = {};
-    for (var i = 0; i < sheets.length; i++) {
-      var s = sheets[i];
-      var parsedSheet = _parseSubjectCode(s.getName());
-      var cleanName = s.getName().toUpperCase().replace(/[^A-Z0-9]/g, '');
-      if (parsedSheet.cleanBaseCode !== parsedInput.cleanBaseCode && cleanName.indexOf(parsedInput.cleanBaseCode) !== 0) continue;
-      var lc = s.getLastColumn(), lr = s.getLastRow();
-      if (lc < 6 || lr < 6) continue;
-      var rows = s.getRange(1, 1, Math.min(15, lr), lc).getValues(); // only top rows, never full matrix
-      var hdr = -1;
-      for (var r = 0; r < rows.length; r++) {
-        var rowStr = rows[r].map(function (c) { return String(c || '').toLowerCase().trim(); }).join('|');
-        if (rowStr.indexOf('roll no') !== -1 && rowStr.indexOf('name') !== -1 && (rowStr.indexOf('total p') !== -1 || rowStr.indexOf('% att') !== -1)) { hdr = r; break; }
-      }
-      if (hdr === -1) hdr = 5;
-      var dateHdr = rows[hdr] || [], topicRow = rows[hdr + 1] || [];
-      var nameCol = -1;
-      for (var c = 0; c < dateHdr.length; c++) if (String(dateHdr[c] || '').toLowerCase().indexOf('name') !== -1) { nameCol = c; break; }
-      if (nameCol === -1) nameCol = 1;
-      for (var c2 = nameCol + 1; c2 < dateHdr.length; c2++) {
-        var dateVal = String(dateHdr[c2] || '').trim().toLowerCase();
-        if (!dateVal || dateVal.indexOf('total') !== -1 || dateVal.indexOf('%') !== -1) continue; // topic exists only under real date columns
-        var tv = String(topicRow[c2] || '').trim();
-        if (tv && tv.toLowerCase() !== 'topic') found[tv] = true;
-      }
-    }
-    return { success: true, topics: Object.keys(found) };
-  } catch (e) { return { success: false, error: e.message }; }
-}
-
-

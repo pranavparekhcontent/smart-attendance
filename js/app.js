@@ -176,9 +176,6 @@ const App = (() => {
       if (s.teachingPlanLink) {
         API.getSyllabusPoints(s.teachingPlanLink, s.code).catch(() => {});
       }
-      if (s.code || s.outputSheetId) {
-        API.getTaughtTopics(s.code, s.outputSheetId).catch(() => {});
-      }
     });
   }
 
@@ -371,8 +368,6 @@ const App = (() => {
         document.getElementById('dash-subject-name').classList.remove('subject-placeholder');
         const card = document.getElementById('subject-card');
         if (card) card.classList.remove('heart-beat');
-        if (sub.teachingPlanLink) API.getSyllabusPoints(sub.teachingPlanLink, sub.code).catch(() => {});
-        API.getTaughtTopics(sub.code, sub.outputSheetId).catch(() => {});
       } else if (mode === 'reports') {
         state.reportsSubject = sub;
         state.reportsBatch = ''; // Reset batch
@@ -456,44 +451,7 @@ const App = (() => {
     }[c])) : "";
   }
 
-  function normT(s) {
-    return String(s || '').trim().toLowerCase().replace(/^[0-9.\-\s]+/, '').trim();
-  }
-
-  function populateTaughtTopics(topicsList, targetSet) {
-    if (!topicsList || !Array.isArray(topicsList)) return;
-    topicsList.forEach(t => {
-      if (!t) return;
-      const str = String(t).trim();
-      if (!str) return;
-      const rawLower = str.toLowerCase();
-      const normalized = normT(str);
-      if (rawLower) targetSet.add(rawLower);
-      if (normalized) targetSet.add(normalized);
-      str.split(',').forEach(part => {
-        const pRaw = part.trim().toLowerCase();
-        const pNorm = normT(part);
-        if (pRaw) targetSet.add(pRaw);
-        if (pNorm) targetSet.add(pNorm);
-      });
-    });
-  }
-
-  function isTopicTaught(pt, taughtSet) {
-    if (!pt || !taughtSet || taughtSet.size === 0) return false;
-    const ptLower = String(pt).trim().toLowerCase();
-    const ptNorm = normT(pt);
-    if (taughtSet.has(ptLower) || taughtSet.has(ptNorm)) return true;
-    return Array.from(taughtSet).some(t => {
-      if (!t) return false;
-      if (t === ptLower || t === ptNorm) return true;
-      if (t.length >= 3 && ptNorm.length >= 3 && (ptNorm.includes(t) || t.includes(ptNorm))) return true;
-      if (t.length >= 3 && ptLower.length >= 3 && (ptLower.includes(t) || t.includes(ptLower))) return true;
-      return false;
-    });
-  }
-
-  function showSyllabusPicker(points, taughtTopics = new Set(), taughtPromise = null) {
+  function showSyllabusPicker(points, taughtTopics = new Set()) {
     return new Promise((resolve) => {
       const pickerId = 'syl-picker-' + Date.now();
       let html = `<div class="modal-header">
@@ -514,7 +472,8 @@ const App = (() => {
       // Render syllabus chips
       points.forEach((pt, idx) => {
         const safeVal = escapeHtml(pt);
-        const isTaught = isTopicTaught(pt, taughtTopics);
+        const ptLower = pt.trim().toLowerCase();
+        const isTaught = taughtTopics.has(ptLower);
         html += `<button type="button" class="syl-chip ${isTaught ? 'taught' : ''}" data-idx="${idx}" data-value="${encodeURIComponent(pt)}" onclick="window._toggleSylChip(this)">
                    <span class="syl-chip-dot"></span>
                    <span class="syl-chip-text" style="flex:1;">${safeVal}</span>
@@ -539,34 +498,6 @@ const App = (() => {
                    <i class="ph-bold ph-check-circle" style="margin-right:6px;"></i> Confirm
                  </button>
                </div>`;
-
-      // Function to dynamically update chips when background topics arrive
-      function applyTaughtToChips() {
-        const chips = document.querySelectorAll(`#${pickerId} .syl-chip:not(.syl-chip-other)`);
-        chips.forEach(chip => {
-          const val = decodeURIComponent(chip.getAttribute('data-value') || '');
-          if (isTopicTaught(val, taughtTopics)) {
-            chip.classList.add('taught');
-            if (!chip.querySelector('.syl-chip-badge')) {
-              const badge = document.createElement('span');
-              badge.className = 'syl-chip-badge';
-              badge.innerHTML = '<i class="ph-bold ph-check" style="margin-right:2px;"></i> Taught';
-              chip.appendChild(badge);
-            }
-          }
-        });
-      }
-
-      window._applyTaughtTopicsToDom = applyTaughtToChips;
-
-      if (taughtPromise && typeof taughtPromise.then === 'function') {
-        taughtPromise.then(res => {
-          if (res && res.success && res.topics) {
-            populateTaughtTopics(res.topics, taughtTopics);
-            applyTaughtToChips();
-          }
-        }).catch(() => {});
-      }
 
       // Filter chips
       window._filterSylChips = (query) => {
@@ -620,6 +551,7 @@ const App = (() => {
           btn.style.pointerEvents = 'auto';
           btn.innerHTML = `<i class="ph-bold ph-check-circle" style="margin-right:6px;"></i> Confirm (${totalSelected})`;
         } else {
+          // If custom button is selected but no text entered yet, let them confirm ONLY if they have regular chips selected. Otherwise disable confirm.
           if (selected.length > 0) {
             btn.style.opacity = '1';
             btn.style.pointerEvents = 'auto';
@@ -660,50 +592,11 @@ const App = (() => {
         delete window._toggleSylCustom;
         delete window._confirmSyllabus;
         delete window._cancelSyllabus;
-        delete window._applyTaughtTopicsToDom;
       }
 
       showModal(html);
     });
   }
-
-  async function forceMarkTaught(code, year, outputSheetId) {
-    try {
-      const att = await API.getAttendance(code, year, null, outputSheetId);
-      if (!att || !att.success || !att.records) return;
-      const taught = new Set();
-      att.records.forEach(r => {
-        if (r.topic) String(r.topic).split(',').forEach(p => {
-          const t = normT(p);
-          if (t) taught.add(t);
-          const raw = p.trim().toLowerCase();
-          if (raw) taught.add(raw);
-        });
-      });
-      document.querySelectorAll('.syl-chip:not(.syl-chip-other)').forEach(ch => {
-        const el = ch.querySelector('.syl-chip-text') || ch;
-        let txt = (el.textContent || '').trim().toLowerCase().replace(/taught|✓|✔/g, '').trim();
-        let txtNorm = normT(txt);
-        if (!txt && !txtNorm) return;
-        let hit = taught.has(txt) || taught.has(txtNorm);
-        if (!hit && (txtNorm.length >= 3 || txt.length >= 3)) {
-          for (const t of taught) {
-            if (t.length >= 3 && (t.includes(txtNorm) || txtNorm.includes(t) || t.includes(txt) || txt.includes(t))) {
-              hit = true;
-              break;
-            }
-          }
-        }
-        if (hit && !ch.classList.contains('taught')) {
-          ch.classList.add('taught');
-          if (!ch.querySelector('.syl-chip-badge')) {
-            ch.insertAdjacentHTML('beforeend', '<span class="syl-chip-badge"><i class="ph-bold ph-check" style="margin-right:2px;"></i> Taught</span>');
-          }
-        }
-      });
-    } catch (e) { console.warn('forceMarkTaught failed:', e); }
-  }
-  window.forceMarkTaught = forceMarkTaught;
 
   async function startAttendanceFlow() {
     if (!state.selectedSubject) return Toast.show('Please select a subject first', 'warning');
@@ -712,35 +605,15 @@ const App = (() => {
     let hasSyllabusPoints = false;
     let syllabusPoints = [];
     const taughtTopics = new Set();
-    let taughtPromise = null;
 
     if (state.selectedSubject.teachingPlanLink) {
       const sylCacheKey = 'syl_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.teachingPlanLink || '');
       const cachedSyl = (window.API && API._getCache) ? API._getCache(sylCacheKey) : null;
-      const topicsCacheKey = 'taught_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.outputSheetId || '');
-      const cachedTopics = (window.API && API._getCache) ? API._getCache(topicsCacheKey) : null;
-
-      if (cachedTopics && cachedTopics.topics) {
-        populateTaughtTopics(cachedTopics.topics, taughtTopics);
-      }
-
-      // Populate from local attendance cache if present
-      const attCacheKey = 'att_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.year || '') + '__' + (state.selectedSubject.outputSheetId || '');
-      const cachedAtt = (window.API && API._getCache) ? API._getCache(attCacheKey) : null;
-      if (cachedAtt && cachedAtt.records) {
-        cachedAtt.records.forEach(rec => {
-          if (rec.topic) populateTaughtTopics([rec.topic], taughtTopics);
-        });
-      }
-
-      // Start fresh silent fetch in background
-      taughtPromise = API.getTaughtTopics(state.selectedSubject.code, state.selectedSubject.outputSheetId);
 
       if (cachedSyl && cachedSyl.points && cachedSyl.points.length > 0) {
         syllabusPoints = cachedSyl.points;
         hasSyllabusPoints = true;
       } else {
-        // ONLY show spinner if syllabus points are NOT cached yet
         showSpinner('Fetching Syllabus...', 'ph-book-open');
         try {
           const res = await API.getSyllabusPoints(state.selectedSubject.teachingPlanLink, state.selectedSubject.code);
@@ -754,11 +627,21 @@ const App = (() => {
           hideSpinner();
         }
       }
+
+      // Check taught topics from local cache without blocking UI
+      const attCacheKey = 'att_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.year || '') + '__' + (state.selectedSubject.outputSheetId || '');
+      const cachedAtt = (window.API && API._getCache) ? API._getCache(attCacheKey) : null;
+      if (cachedAtt && cachedAtt.records) {
+        cachedAtt.records.forEach(rec => {
+          if (rec.topic && rec.topic.trim()) {
+            rec.topic.split(',').forEach(part => taughtTopics.add(part.trim().toLowerCase()));
+          }
+        });
+      }
     }
 
     if (hasSyllabusPoints) {
-      forceMarkTaught(state.selectedSubject.code, state.selectedSubject.year, state.selectedSubject.outputSheetId);
-      const choice = await showSyllabusPicker(syllabusPoints, taughtTopics, taughtPromise);
+      const choice = await showSyllabusPicker(syllabusPoints, taughtTopics);
       if (choice === null) {
         // User cancelled syllabus selection
         return;
@@ -1145,17 +1028,6 @@ const App = (() => {
 
     if (res.success) {
       state.lastSavedRecords = records;
-      if (state.sessionTopic && state.selectedSubject) {
-        const topicsCacheKey = 'taught_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.outputSheetId || '');
-        const cachedTopics = (window.API && API._getCache) ? API._getCache(topicsCacheKey) : null;
-        const currentTopics = (cachedTopics && Array.isArray(cachedTopics.topics)) ? [...cachedTopics.topics] : [];
-        if (!currentTopics.includes(state.sessionTopic)) {
-          currentTopics.push(state.sessionTopic);
-        }
-        if (window.API && API._setCache) {
-          API._setCache(topicsCacheKey, { success: true, topics: currentTopics });
-        }
-      }
       showSessionCompleteDialog(
         students.filter(s => s.status === 'P').length,
         students.filter(s => s.status === 'A').length,

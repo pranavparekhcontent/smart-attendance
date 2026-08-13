@@ -21,6 +21,7 @@ const FILES = {
   versionJson:   path.join(ROOT, 'version.json'),
   appstartConfig: path.join(ROOT, 'appstart', 'config.js'),
   jsConfig:      path.join(ROOT, 'js', 'config.js'),
+  swJs:          path.join(ROOT, 'sw.js'),
 };
 
 // ── Helpers ────────────────────────────────────────────────
@@ -38,6 +39,8 @@ function extractVersion(content, type) {
   let match;
   if (type === 'json') {
     match = content.match(/"version"\s*:\s*"([^"]+)"/);
+  } else if (type === 'sw') {
+    match = content.match(/CACHE_VERSION\s*=\s*['"]attendance-v([^'"]+)['"]/);
   } else {
     // JS file — matches both: APP_VERSION: "1.0.3" and APP_VERSION = '1.0.3'
     match = content.match(/APP_VERSION\s*[:=]\s*['"]([^'"]+)['"]/);
@@ -84,6 +87,13 @@ function updateJsConfig(content, newVersion) {
   );
 }
 
+/** Write version into sw.js */
+function updateSwJs(content, newVersion) {
+  return content
+    .replace(/(Smart Attendance — Service Worker\s+v)[\d.]+/, `$1${newVersion}`)
+    .replace(/(CACHE_VERSION\s*=\s*['"]attendance-v)[\d.]+(['"])/, `$1${newVersion}$2`);
+}
+
 // ── Main ───────────────────────────────────────────────────
 function main() {
   const arg = process.argv[2]; // optional: version string or "bump"
@@ -114,6 +124,15 @@ function main() {
     console.log(`  📄 appstart/config.js   → ${versions.appstartConfig || '❌ not found'}`);
   } else {
     console.log(`  📄 appstart/config.js   → ❌ file missing`);
+  }
+
+  // sw.js (service worker cache)
+  contents.swJs = readFile(FILES.swJs);
+  if (contents.swJs) {
+    versions.swJs = extractVersion(contents.swJs, 'sw');
+    console.log(`  📄 sw.js                → ${versions.swJs || '❌ no cache version found'}`);
+  } else {
+    console.log(`  📄 sw.js                → ❌ file missing`);
   }
 
   // js/config.js (optional — may not exist in template)
@@ -188,6 +207,17 @@ function main() {
       updated++;
     } else {
       console.log(`  ── appstart/config.js   → already v${targetVersion}`);
+    }
+  }
+
+  if (contents.swJs) {
+    const newContent = updateSwJs(contents.swJs, targetVersion);
+    if (newContent !== contents.swJs) {
+      writeFile(FILES.swJs, newContent);
+      console.log(`  ✅ sw.js                → v${targetVersion}`);
+      updated++;
+    } else {
+      console.log(`  ── sw.js                → already v${targetVersion}`);
     }
   }
 

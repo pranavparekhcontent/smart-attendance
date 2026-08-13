@@ -25,9 +25,7 @@ const API = (() => {
     }
     let url = _getBaseUrl() + '?action=' + encodeURIComponent(action);
     for (const k in params) {
-      if (params[k] !== undefined && params[k] !== null && params[k] !== '' && params[k] !== 'undefined' && params[k] !== 'null') {
-        url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
-      }
+      url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
     }
 
     let lastErr;
@@ -404,34 +402,6 @@ const API = (() => {
     return match ? match[1] : url;
   }
 
-  /**
-   * Get taught topics directly (1-row scan from output sheet)
-   */
-  async function getTaughtTopics(code, outputSheetId) {
-    if (!navigator.onLine) {
-      const cacheKey = 'taught_' + (code || '') + '_' + (outputSheetId || '');
-      const cached = _getCache(cacheKey);
-      if (cached) return cached;
-      return { success: false, error: 'Offline' };
-    }
-    try {
-      const params = { code: code || '' };
-      if (outputSheetId) params.outputSheetId = outputSheetId;
-      const res = await _withTimeout(_get('getTaughtTopics', params), 15000);
-      if (res && res.success) {
-        const cacheKey = 'taught_' + (code || '') + '_' + (outputSheetId || '');
-        _setCache(cacheKey, res);
-      }
-      return res;
-    } catch (e) {
-      console.warn('API.getTaughtTopics network fail:', e.message);
-      const cacheKey = 'taught_' + (code || '') + '_' + (outputSheetId || '');
-      const cached = _getCache(cacheKey);
-      if (cached) return cached;
-      return { success: false, error: e.message };
-    }
-  }
-
   // Automatic bootup sync & background retry loop
   if (typeof window !== 'undefined') {
     // 1. Bootup auto-sync (runs 3 seconds after page load)
@@ -471,7 +441,6 @@ const API = (() => {
     getSyllabusPoints,
     getStudents,
     getAttendance,
-    getTaughtTopics,
     saveAttendance,
     syncPending,
     getPendingCount,
