@@ -62,44 +62,46 @@ const API = (() => {
     throw lastErr;
   }
 
-  async function _post(action, body) {
-    let url = _getBaseUrl() + '?action=' + encodeURIComponent(action);
-    // Inject sheetId into POST body if available
-    if (window.appStartContext && window.appStartContext.sheetId) {
-      if (typeof body === 'object' && body !== null) {
-        body.sheetId = window.appStartContext.sheetId;
+  async function _post(action, body, timeoutMs = 10000) {
+    return _withTimeout((async () => {
+      let url = _getBaseUrl() + '?action=' + encodeURIComponent(action);
+      // Inject sheetId into POST body if available
+      if (window.appStartContext && window.appStartContext.sheetId) {
+        if (typeof body === 'object' && body !== null) {
+          body.sheetId = window.appStartContext.sheetId;
+        }
       }
-    }
 
-    let lastErr;
-    for (let i = 0; i < MAX_RETRIES; i++) {
-      try {
-        const res = await fetch(url, {
-          method: 'POST',
-          body: JSON.stringify(body),
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          redirect: 'follow'
-        });
-        
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        
-        let data = await res.json();
-        
-        // --- TRANSLATOR / NORMALIZER ---
-        if (data && data.success && data.data && typeof data.data === 'object') {
-          const innerData = data.data;
-          data = { ...data, ...innerData };
-        }
-        
-        return data;
-      } catch (err) {
-        lastErr = err;
-        if (i < MAX_RETRIES - 1) {
-          await _sleep(RETRY_DELAY_MS * (i + 1));
+      let lastErr;
+      for (let i = 0; i < MAX_RETRIES; i++) {
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            body: JSON.stringify(body),
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            redirect: 'follow'
+          });
+          
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          
+          let data = await res.json();
+          
+          // --- TRANSLATOR / NORMALIZER ---
+          if (data && data.success && data.data && typeof data.data === 'object') {
+            const innerData = data.data;
+            data = { ...data, ...innerData };
+          }
+          
+          return data;
+        } catch (err) {
+          lastErr = err;
+          if (i < MAX_RETRIES - 1) {
+            await _sleep(RETRY_DELAY_MS * (i + 1));
+          }
         }
       }
-    }
-    throw lastErr;
+      throw lastErr;
+    })(), timeoutMs);
   }
 
   function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -290,18 +292,28 @@ const API = (() => {
   }
 
   /**
-   * Save attendance — queue locally then sync
+   * Save attendance — queue locally first then attempt online sync
    */
   async function saveAttendance(records, outputSheetId) {
     if (!records || !records.length) return { success: false, error: 'No records' };
 
-    // Always queue first
+    // Always queue locally first for safety
     _addPending(records);
 
     if (navigator.onLine) {
-      return await syncPending(outputSheetId);
+      const syncRes = await syncPending(outputSheetId);
+      if (syncRes.success) {
+        return { success: true, synced: true, saved: syncRes.synced, isLocallySaved: false };
+      }
     }
-    return { success: true, synced: false, message: 'Saved offline. Will sync when online.' };
+    // Saved locally safely (offline or network timeout)
+    return {
+      success: true,
+      synced: false,
+      saved: records.length,
+      isLocallySaved: true,
+      message: '(Saved Locally)'
+    };
   }
 
   /**
@@ -318,12 +330,13 @@ const API = (() => {
         outputSheetId: outputSheetId || '',
         collegeName: (window.appStartContext && window.appStartContext.collegeName) || '',
         managementName: (window.appStartContext && window.appStartContext.managementName) || ''
-      });
-      if (res.success) {
+      }, 10000);
+
+      if (res && res.success) {
         _clearPending();
-        return { success: true, synced: res.saved };
+        return { success: true, synced: res.saved || pending.length };
       }
-      return { success: false, error: res.error, pending: pending.length };
+      return { success: false, error: (res && res.error) || 'Sync Error', pending: pending.length };
     } catch (e) {
       return { success: false, error: e.message, pending: pending.length };
     }
@@ -343,14 +356,35 @@ const API = (() => {
     return match ? match[1] : url;
   }
 
-  // Auto-sync on connectivity restore
+  // Automatic bootup sync & background retry loop
   if (typeof window !== 'undefined') {
+    // 1. Bootup auto-sync (runs 3 seconds after page load)
+    setTimeout(() => {
+      syncPending().then(r => {
+        if (r && r.synced > 0 && window.Toast) {
+          Toast.show('✅ Auto-synced ' + r.synced + ' offline records', 'success');
+        }
+      }).catch(() => {});
+    }, 3000);
+
+    // 2. Periodic background sync loop every 30 seconds
+    setInterval(() => {
+      if (navigator.onLine && _getPending().length > 0) {
+        syncPending().then(r => {
+          if (r && r.synced > 0 && window.Toast) {
+            Toast.show('✅ Background synced ' + r.synced + ' records to Sheets', 'success');
+          }
+        }).catch(() => {});
+      }
+    }, 30000);
+
+    // 3. Online event auto-sync
     window.addEventListener('online', () => {
       syncPending().then(r => {
-        if (r.synced > 0 && window.Toast) {
+        if (r && r.synced > 0 && window.Toast) {
           Toast.show('✅ Synced ' + r.synced + ' offline records', 'success');
         }
-      });
+      }).catch(() => {});
     });
   }
 

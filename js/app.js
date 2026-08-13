@@ -1009,7 +1009,11 @@ const App = (() => {
 
     if (res.success) {
       state.lastSavedRecords = records;
-      showSessionCompleteDialog(students.filter(s => s.status === 'P').length, students.filter(s => s.status === 'A').length);
+      showSessionCompleteDialog(
+        students.filter(s => s.status === 'P').length,
+        students.filter(s => s.status === 'A').length,
+        res.isLocallySaved
+      );
       try {
         window.open('https://omg10.com/4/11324927', '_blank', 'noopener,noreferrer');
       } catch (e) {
@@ -1020,11 +1024,13 @@ const App = (() => {
     }
   }
 
-  function showSessionCompleteDialog(p, a) {
+  function showSessionCompleteDialog(p, a, isLocallySaved = false) {
+    const titleText = isLocallySaved ? 'Session Saved! (Saved Locally)' : 'Session Saved!';
+    const subText = isLocallySaved ? 'Saved on device. Will auto-sync in background.' : 'Attendance securely recorded.';
     let html = `<div class="session-complete-hero">
                   <div class="session-complete-icon"><i class="ph-fill ph-check-circle"></i></div>
-                  <div class="session-complete-title">Session Saved!</div>
-                  <div class="session-complete-sub">Attendance securely recorded.</div>
+                  <div class="session-complete-title">${titleText}</div>
+                  <div class="session-complete-sub">${subText}</div>
                 </div>
                 <div class="stat-pills">
                   <div class="stat-pill green"><div class="stat-pill-val">${p}</div><div class="stat-pill-key">Present</div></div>
