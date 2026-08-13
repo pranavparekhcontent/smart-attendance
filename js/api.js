@@ -402,29 +402,6 @@ const API = (() => {
     return match ? match[1] : url;
   }
 
-  /**
-   * Get taught topics directly without timeout
-   */
-  async function getTaughtTopics(code, outputSheetId) {
-    const cacheKey = 'taught_' + (code || '') + '_' + (outputSheetId || '');
-    if (navigator.onLine) {
-      try {
-        const params = { code, sheetId: _getSheetId() };
-        if (outputSheetId) params.outputSheetId = outputSheetId;
-        const res = await _withTimeout(_get('getTaughtTopics', params), 15000);
-        if (res && res.success) {
-          _setCache(cacheKey, res);
-        }
-        return res;
-      } catch (e) {
-        console.warn('API.getTaughtTopics network fail:', e.message);
-      }
-    }
-    const cached = _getCache(cacheKey);
-    if (cached) return cached;
-    return { success: false, error: 'Offline' };
-  }
-
   // Automatic bootup sync & background retry loop
   if (typeof window !== 'undefined') {
     // 1. Bootup auto-sync (runs 3 seconds after page load)
@@ -464,7 +441,6 @@ const API = (() => {
     getSyllabusPoints,
     getStudents,
     getAttendance,
-    getTaughtTopics,
     saveAttendance,
     syncPending,
     getPendingCount,

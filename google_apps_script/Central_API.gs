@@ -46,9 +46,6 @@ function doGet(e) {
       case 'getSyllabus':
         result = getSyllabus(e.parameter.link, e.parameter.code, sheetId);
         break;
-      case 'getTaughtTopics':
-        result = getTaughtTopics(e.parameter.code, e.parameter.outputSheetId, sheetId);
-        break;
       case 'getConfig':
       case 'getAllData': 
         result = getAllData(sheetId); 
@@ -2234,75 +2231,4 @@ function uploadAcademicDocument(data, sheetId) {
   } catch (err) {
     return { success: false, error: "Drive Upload Failed: " + err.message };
   }
-}
-
-function getTaughtTopics(code, outputSheetId, sheetId) {
-  if (!code) return { success: false, topics: [], error: 'No code' };
-  if (!outputSheetId) {
-    try {
-      var targetIds = getTargetSheetIds(code, sheetId);
-      if (targetIds && targetIds.outputSheetId) outputSheetId = targetIds.outputSheetId;
-    } catch(e) {}
-  }
-  if (!outputSheetId) outputSheetId = getOutputSheetId(sheetId);
-  var cleanOutId = extractSpreadsheetId(outputSheetId);
-  if (!cleanOutId) return { success: false, topics: [], error: 'Invalid Output Sheet Link' };
-  
-  var outSs;
-  try {
-    outSs = _getSpreadsheet(cleanOutId);
-  } catch(e) {
-    try { outSs = SpreadsheetApp.openById(cleanOutId); } catch(e2) { return { success: false, topics: [], error: 'Scan Fail' }; }
-  }
-  if (!outSs) return { success: false, topics: [], error: 'Spreadsheet not found' };
-
-  var sheets = outSs.getSheets();
-  var parsedInput = _parseSubjectCode(code);
-  var topics = [];
-  var seenTopics = {};
-  
-  for (var i = 0; i < sheets.length; i++) {
-    var s = sheets[i], name = s.getName();
-    var parsedSheetCode = _parseSubjectCode(name);
-    var cleanSheetName = name.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    
-    var matches = false;
-    if (parsedSheetCode.cleanBaseCode === parsedInput.cleanBaseCode) matches = true;
-    else if (cleanSheetName.indexOf(parsedInput.cleanBaseCode) === 0) matches = true;
-    else if (parsedInput.cleanBaseCode && cleanSheetName.indexOf(parsedInput.cleanBaseCode) !== -1) matches = true;
-    else if (name.toLowerCase() === code.toLowerCase()) matches = true;
-    
-    if (!matches) continue;
-    
-    var lc = s.getLastColumn();
-    if (lc < 3) continue;
-    
-    var maxR = Math.min(s.getLastRow(), 25);
-    if (maxR < 2) continue;
-    var attData = s.getRange(1, 1, maxR, lc).getValues();
-    var hdrRowIdx = -1;
-    for (var r = 0; r < attData.length; r++) {
-      var rowStr = attData[r].map(function(cell) { return String(cell || '').toLowerCase().trim(); }).join('|');
-      if (rowStr.indexOf('roll') !== -1 && rowStr.indexOf('name') !== -1) {
-        hdrRowIdx = r;
-        break;
-      }
-    }
-    
-    if (hdrRowIdx === -1 && attData.length > 5) {
-      hdrRowIdx = 5;
-    }
-    
-    if (hdrRowIdx !== -1 && hdrRowIdx + 1 < attData.length) {
-      var topicRow = attData[hdrRowIdx + 1];
-      for (var c = 0; c < topicRow.length; c++) {
-        var t = String(topicRow[c] || '').trim();
-        if (t && !seenTopics[t.toLowerCase()]) {
-          seenTopics[t.toLowerCase()] = true;
-          topics.push(t);
-        }
-      }
-    }
-  }
-  return { success: true, topics: topics };
 }
