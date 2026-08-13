@@ -43,9 +43,6 @@ function doGet(e) {
       case 'getAttendance': 
         result = getAttendance(e.parameter.code, e.parameter.year, e.parameter.date, e.parameter.outputSheetId, sheetId); 
         break;
-      case 'getTaughtTopics':
-        result = getTaughtTopics(e.parameter.code, e.parameter.outputSheetId, sheetId);
-        break;
       case 'getSyllabus':
         result = getSyllabus(e.parameter.link, e.parameter.code, sheetId);
         break;
@@ -1035,7 +1032,6 @@ function saveAttendance(records, outputSheetId, collegeName, managementName, she
       var cleanOutId = extractSpreadsheetId(outputSheetId);
       if (code) {
         CacheService.getScriptCache().remove('attrep_v1_' + code + '__' + cleanOutId);
-        CacheService.getScriptCache().remove('taught_' + code + '_' + cleanOutId);
       }
     } catch(cErr) {}
     return { success: true, saved: records.length };
@@ -1247,69 +1243,6 @@ function getAttendance(code, year, date, outputSheetId, sheetId) {
     } catch(ce) {}
   }
   return result;
-}
-
-function getTaughtTopics(code, outputSheetId, sheetId) {
-  if (!code) return { success: true, topics: [] };
-  if (!outputSheetId) outputSheetId = getOutputSheetId(sheetId);
-  var cleanOutId = extractSpreadsheetId(outputSheetId);
-  if (!cleanOutId) return { success: false, error: 'Invalid Output Sheet Link' };
-  
-  var cacheKey = 'taught_' + (code || '') + '_' + cleanOutId;
-  var cache = CacheService.getScriptCache();
-  var cached = cache.get(cacheKey);
-  if (cached) {
-    try { return JSON.parse(cached); } catch(e) {}
-  }
-
-  var outSs; 
-  try { outSs = SpreadsheetApp.openById(cleanOutId); } catch(e) { return { success: false, error: 'Scan Fail' }; }
-  var sheets = outSs.getSheets();
-  var parsedInput = _parseSubjectCode(code);
-  var topics = [];
-  var seen = {};
-
-  for (var i = 0; i < sheets.length; i++) {
-    var s = sheets[i], name = s.getName();
-    var parsedSheetCode = _parseSubjectCode(name);
-    var cleanSheetName = name.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (parsedSheetCode.cleanBaseCode !== parsedInput.cleanBaseCode && cleanSheetName.indexOf(parsedInput.cleanBaseCode) !== 0) continue;
-    
-    var lc = s.getLastColumn(), lr = s.getLastRow();
-    if (lc < 6 || lr < 7) continue;
-
-    // Read only top 15 rows for blazing-fast speed
-    var topData = s.getRange(1, 1, Math.min(lr, 15), lc).getValues();
-    var hdrRowIdx = -1;
-    for (var r = 0; r < topData.length; r++) {
-      var rowStr = topData[r].map(function(cell) { return String(cell || '').toLowerCase().trim(); }).join('|');
-      if (rowStr.indexOf('roll no') !== -1 && rowStr.indexOf('name') !== -1 && (rowStr.indexOf('total p') !== -1 || rowStr.indexOf('% att') !== -1)) {
-        hdrRowIdx = r;
-        break;
-      }
-    }
-    if (hdrRowIdx === -1) hdrRowIdx = 5;
-    if (topData.length <= hdrRowIdx + 1) continue;
-
-    var topicRow = topData[hdrRowIdx + 1] || [];
-    for (var c = 2; c < topicRow.length; c++) {
-      var t = String(topicRow[c] || '').trim();
-      if (t && t.toLowerCase() !== 'topic' && t.toLowerCase() !== 'particulars') {
-        var parts = t.split(',');
-        for (var p = 0; p < parts.length; p++) {
-          var cleanT = parts[p].trim();
-          if (cleanT && !seen[cleanT.toLowerCase()]) {
-            seen[cleanT.toLowerCase()] = true;
-            topics.push(cleanT);
-          }
-        }
-      }
-    }
-  }
-
-  var res = { success: true, topics: topics };
-  try { cache.put(cacheKey, JSON.stringify(res), 600); } catch(ce) {}
-  return res;
 }
 
 function _getAttendanceUncached(code, year, date, outputSheetId, sheetId) {
