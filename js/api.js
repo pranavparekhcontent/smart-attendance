@@ -286,41 +286,8 @@ const API = (() => {
   }
 
   /**
-   * Get taught topics for a subject from output sheet (lightweight)
+   * Get students for a year sheet
    */
-  async function getTaughtTopics(code, outputSheetId) {
-    if (!outputSheetId) {
-      if (window.appStartContext) {
-        const cfg = window.appStartContext.config || {};
-        outputSheetId = cfg.output_sheet_id || cfg.output_sheet || cfg['output sheet id'] || cfg['output sheet'] || window.appStartContext.sheetId || '';
-      }
-    }
-    const cleanOutId = extractSheetId(outputSheetId);
-    const cacheKey = 'taught_' + (code || '') + '_' + (cleanOutId || '');
-    const cached = _getCache(cacheKey);
-    if (cached && cached.topics && cached.topics.length > 0) {
-      return cached;
-    }
-
-    if (navigator.onLine) {
-      try {
-        const params = { code: code || '' };
-        if (cleanOutId) params.outputSheetId = cleanOutId;
-        const data = await _withTimeout(_get('getTaughtTopics', params), 10000);
-        if (data && data.success && data.topics && data.topics.length > 0) {
-          _setCache(cacheKey, data);
-          return data;
-        } else if (data && data.success) {
-          return data;
-        }
-      } catch (e) {
-        console.warn('API.getTaughtTopics network fail:', e.message);
-      }
-    }
-    if (cached) return cached;
-    return { success: true, topics: [] };
-  }
-
   /**
    * Get students for a year sheet
    */
@@ -472,7 +439,6 @@ const API = (() => {
     getAllDataFromUrl,
     getConfig,
     getSyllabusPoints,
-    getTaughtTopics,
     getStudents,
     getAttendance,
     saveAttendance,

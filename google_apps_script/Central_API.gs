@@ -43,9 +43,6 @@ function doGet(e) {
       case 'getAttendance': 
         result = getAttendance(e.parameter.code, e.parameter.year, e.parameter.date, e.parameter.outputSheetId, sheetId); 
         break;
-      case 'getTaughtTopics':
-        result = getTaughtTopics(e.parameter.code, e.parameter.outputSheetId, sheetId);
-        break;
       case 'getSyllabus':
         result = getSyllabus(e.parameter.link, e.parameter.code, sheetId);
         break;
@@ -1248,98 +1245,6 @@ function getAttendance(code, year, date, outputSheetId, sheetId) {
   return result;
 }
 
-function getTaughtTopics(code, outputSheetId, sheetId) {
-  if (!code) return { success: false, topics: [] };
-  if (!outputSheetId) outputSheetId = getOutputSheetId(sheetId);
-  if (!outputSheetId && sheetId) {
-    try { outputSheetId = getTargetSheetIds(code, sheetId).outputSheetId; } catch(e) {}
-  }
-  var cleanOutId = extractSpreadsheetId(outputSheetId);
-  if (!cleanOutId) return { success: false, topics: [] };
-
-  var cacheKey = 'taught_v2_' + String(code || '').replace(/[^a-zA-Z0-9]/g, '') + '_' + cleanOutId;
-  var cache = CacheService.getScriptCache();
-  var cached = cache.get(cacheKey);
-  if (cached) {
-    try {
-      var parsed = JSON.parse(cached);
-      if (parsed && parsed.topics && parsed.topics.length > 0) return parsed;
-    } catch(e) {}
-  }
-
-  var outSs; try { outSs = SpreadsheetApp.openById(cleanOutId); } catch(e) { return { success: false, topics: [] }; }
-  var sheets = outSs.getSheets();
-  var cleanCode = String(code || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-  var subInfo = getSubjectInfo(code, sheetId);
-  var cleanSubName = (subInfo && subInfo.name) ? subInfo.name.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() : '';
-  var topics = [], seen = {};
-
-  for (var i = 0; i < sheets.length; i++) {
-    var s = sheets[i], name = s.getName().trim();
-    var cleanSheetName = name.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-    
-    // Match by code or subject name or single tab workbook
-    var isMatch = (sheets.length === 1) ||
-                  (cleanSheetName.indexOf(cleanCode) !== -1) ||
-                  (cleanSubName && cleanSheetName.indexOf(cleanSubName) !== -1) ||
-                  (name.toUpperCase().indexOf(cleanCode) !== -1);
-    if (!isMatch) continue;
-
-    var lr = Math.min(s.getLastRow(), 25), lc = s.getLastColumn();
-    if (lr < 2 || lc < 2) continue;
-
-    var headerData = s.getRange(1, 1, lr, lc).getValues();
-    var topicRowIdx = -1;
-
-    // 1. Look for explicit row labeled "Topic"
-    for (var r = 0; r < headerData.length; r++) {
-      var col0 = String(headerData[r][0] || '').toLowerCase().trim();
-      var col1 = String(headerData[r][1] || '').toLowerCase().trim();
-      var col2 = String(headerData[r][2] || '').toLowerCase().trim();
-      if (col0 === 'topic' || col1 === 'topic' || col2 === 'topic') {
-        topicRowIdx = r;
-        break;
-      }
-    }
-
-    // 2. If not explicitly labeled, locate header row with roll no / name and take next row
-    if (topicRowIdx === -1) {
-      for (var r = 0; r < headerData.length; r++) {
-        var rowStr = headerData[r].map(function(cell) { return String(cell || '').toLowerCase().trim(); }).join('|');
-        if (rowStr.indexOf('roll no') !== -1 && rowStr.indexOf('name') !== -1) {
-          if (r + 1 < headerData.length) topicRowIdx = r + 1;
-          break;
-        }
-      }
-    }
-
-    if (topicRowIdx !== -1) {
-      var topicRow = headerData[topicRowIdx] || [];
-      for (var c = 0; c < topicRow.length; c++) {
-        var t = String(topicRow[c] || '').trim();
-        if (!t) continue;
-        var lowerT = t.toLowerCase();
-        if (lowerT === 'topic' || lowerT === 'roll no' || lowerT === 'name' || lowerT === 'total p' || lowerT === 'total a' || lowerT === 'total' || lowerT.indexOf('% att') !== -1 || t.indexOf('=') === 0) continue;
-        
-        var parts = t.split(',');
-        for (var p = 0; p < parts.length; p++) {
-          var cleanT = parts[p].trim();
-          if (cleanT && cleanT.length > 1 && !seen[cleanT.toLowerCase()]) {
-            seen[cleanT.toLowerCase()] = true;
-            topics.push(cleanT);
-          }
-        }
-      }
-    }
-  }
-
-  var res = { success: true, topics: topics };
-  if (topics.length > 0) {
-    try { cache.put(cacheKey, JSON.stringify(res), 300); } catch(ce) {}
-  }
-  return res;
-}
-
 function _getAttendanceUncached(code, year, date, outputSheetId, sheetId) {
   if (!code) return { error: 'No code' };
   if (!outputSheetId) outputSheetId = getOutputSheetId(sheetId);
@@ -1416,10 +1321,6 @@ function _getAttendanceUncached(code, year, date, outputSheetId, sheetId) {
     for (var r = hdrRowIdx + 2; r < attData.length; r++) {
        var rowData = attData[r];
        if (!rowData || rowData.length === 0) continue;
-       var rollVal = String(rowData[0] || '').trim();
-       var nameVal = String(rowData[nameColIdx] || '').trim();
-       if (!rollVal && !nameVal) continue; // Skip blank empty trailing rows!
-
        for (var d = 0; d < dates.length; d++) {
           var colIdx = dates[d].index;
           if (colIdx >= rowData.length) continue;
@@ -1435,7 +1336,7 @@ function _getAttendanceUncached(code, year, date, outputSheetId, sheetId) {
                batch: batch,
                faculty: "Assigned",
                rollNo: rowData[0],
-               name: rowData[nameColIdx] || rowData[1],
+               name: rowData[1],
                status: st,
                topic: topicVal
              });
