@@ -43,6 +43,9 @@ function doGet(e) {
       case 'getAttendance': 
         result = getAttendance(e.parameter.code, e.parameter.year, e.parameter.date, e.parameter.outputSheetId, sheetId); 
         break;
+      case 'getTaughtTopics':
+        result = getTaughtTopics(e.parameter.code, e.parameter.outputSheetId, sheetId);
+        break;
       case 'getSyllabus':
         result = getSyllabus(e.parameter.link, e.parameter.code, sheetId);
         break;
@@ -1486,22 +1489,80 @@ function getTeachingPlan(code, teacher, sheetId) {
       }
     } catch(e) {}
 
+    function isDateOrNumberVal(val) {
+      if (!val) return false;
+      if (val instanceof Date || Object.prototype.toString.call(val) === '[object Date]') return true;
+      var s = String(val).trim();
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return true;
+      if (/^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}/.test(s)) return true;
+      if (/^\d{1,2}-[A-Za-z]{3}-\d{2,4}/.test(s)) return true;
+      if (/^(sun|mon|tue|wed|thu|fri|sat)\s+[a-z]{3}\s+\d{1,2}\s+\d{4}/i.test(s)) return true;
+      if (/^\d+$/.test(s)) return true;
+      return false;
+    }
+
+    var headerRow = data[headerRowIdx] || [];
+    var colIdxSyllabus = -1;
+    var colIdxLectureNo = -1;
+    var colIdxPlanned = -1;
+    var colIdxExecuted = -1;
+    var colIdxRemark = -1;
+
+    for (var c = 0; c < headerRow.length; c++) {
+      var h = String(headerRow[c] || '').toLowerCase().trim();
+      if (!h) continue;
+      if (h.indexOf('syllabus') !== -1 || h.indexOf('topic') !== -1 || h.indexOf('particular') !== -1 || h.indexOf('content') !== -1 || h.indexOf('description') !== -1 || h.indexOf('experiment') !== -1 || h.indexOf('details of') !== -1) {
+        if (colIdxSyllabus === -1) colIdxSyllabus = c;
+      } else if (h.indexOf('lecture no') !== -1 || h.indexOf('lec no') !== -1 || h.indexOf('sr. no') !== -1 || h.indexOf('sr no') !== -1 || h.indexOf('practical no') !== -1) {
+        if (colIdxLectureNo === -1) colIdxLectureNo = c;
+      } else if (h.indexOf('planned') !== -1 || h.indexOf('proposed') !== -1 || h.indexOf('target date') !== -1 || h.indexOf('schedule') !== -1) {
+        if (colIdxPlanned === -1) colIdxPlanned = c;
+      } else if (h.indexOf('executed') !== -1 || h.indexOf('conducted') !== -1 || h.indexOf('actual date') !== -1 || h.indexOf('date of execution') !== -1 || h.indexOf('completed') !== -1) {
+        if (colIdxExecuted === -1) colIdxExecuted = c;
+      } else if (h.indexOf('remark') !== -1 || h.indexOf('pedagogy') !== -1 || h.indexOf('aid') !== -1 || h.indexOf('sign') !== -1) {
+        if (colIdxRemark === -1) colIdxRemark = c;
+      }
+    }
+
     var topics = [];
     var startRow = headerRowIdx + 1;
-    var colIdxSyllabus = 2;
-    var colIdxLectureNo = 1;
-    var colIdxPlanned = 3;
-    var colIdxExecuted = 4;
-    var colIdxRemark = 5;
+
+    // Safety fallback for syllabus column: find the text column with real topic names (not dates/numbers)
+    if (colIdxSyllabus === -1 || (data[startRow] && isDateOrNumberVal(data[startRow][colIdxSyllabus]))) {
+      var bestCol = -1, maxLen = 0;
+      for (var r = startRow; r < Math.min(startRow + 5, data.length); r++) {
+        for (var c = 0; c < data[r].length; c++) {
+          var val = data[r][c];
+          if (!isDateOrNumberVal(val)) {
+            var strLen = String(val || '').trim().length;
+            if (strLen > maxLen && strLen > 5) {
+              maxLen = strLen;
+              bestCol = c;
+            }
+          }
+        }
+      }
+      if (bestCol !== -1) colIdxSyllabus = bestCol;
+      else if (colIdxSyllabus === -1) colIdxSyllabus = 2;
+    }
+
+    if (colIdxLectureNo === -1) colIdxLectureNo = 1;
+    if (colIdxPlanned === -1) colIdxPlanned = colIdxSyllabus === 2 ? 3 : 2;
+    if (colIdxExecuted === -1) colIdxExecuted = colIdxPlanned + 1;
+    if (colIdxRemark === -1) colIdxRemark = 5;
 
     for (var i = startRow; i < data.length; i++) {
       var row = data[i];
-      var syllabus = row[colIdxSyllabus] ? String(row[colIdxSyllabus]).trim() : '';
+      var rawSyl = row[colIdxSyllabus];
+      var syllabus = '';
+      if (rawSyl && !isDateOrNumberVal(rawSyl)) {
+        syllabus = String(rawSyl).trim();
+      }
       if (!syllabus) {
         var altSyllabus = '';
         for (var c = 0; c < row.length; c++) {
-          var strCell = String(row[c]).trim();
-          if (strCell.length > 10 && strCell.indexOf('Total') === -1) {
+          var strCell = String(row[c] || '').trim();
+          if (strCell.length > 5 && !isDateOrNumberVal(row[c]) && strCell.indexOf('Total') === -1 && strCell.indexOf('Signature') === -1) {
             altSyllabus = strCell;
             break;
           }
@@ -2232,3 +2293,44 @@ function uploadAcademicDocument(data, sheetId) {
     return { success: false, error: "Drive Upload Failed: " + err.message };
   }
 }
+
+function getTaughtTopics(code, outputSheetId, sheetId) {
+  try {
+    if (outputSheetId === 'undefined' || outputSheetId === 'null') outputSheetId = '';
+    if (!outputSheetId && sheetId) outputSheetId = getOutputSheetId(sheetId);
+    var cleanOutId = extractSpreadsheetId(outputSheetId);
+    if (!cleanOutId && sheetId) cleanOutId = extractSpreadsheetId(getOutputSheetId(sheetId));
+    if (!cleanOutId) return { success: false, error: 'Invalid Output Sheet Link' };
+    var outSs = SpreadsheetApp.openById(cleanOutId);
+    var sheets = outSs.getSheets();
+    var parsedInput = _parseSubjectCode(code);
+    var found = {};
+    for (var i = 0; i < sheets.length; i++) {
+      var s = sheets[i];
+      var parsedSheet = _parseSubjectCode(s.getName());
+      var cleanName = s.getName().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (parsedSheet.cleanBaseCode !== parsedInput.cleanBaseCode && cleanName.indexOf(parsedInput.cleanBaseCode) !== 0) continue;
+      var lc = s.getLastColumn(), lr = s.getLastRow();
+      if (lc < 6 || lr < 6) continue;
+      var rows = s.getRange(1, 1, Math.min(15, lr), lc).getValues(); // only top rows, never full matrix
+      var hdr = -1;
+      for (var r = 0; r < rows.length; r++) {
+        var rowStr = rows[r].map(function (c) { return String(c || '').toLowerCase().trim(); }).join('|');
+        if (rowStr.indexOf('roll no') !== -1 && rowStr.indexOf('name') !== -1 && (rowStr.indexOf('total p') !== -1 || rowStr.indexOf('% att') !== -1)) { hdr = r; break; }
+      }
+      if (hdr === -1) hdr = 5;
+      var dateHdr = rows[hdr] || [], topicRow = rows[hdr + 1] || [];
+      var nameCol = -1;
+      for (var c = 0; c < dateHdr.length; c++) if (String(dateHdr[c] || '').toLowerCase().indexOf('name') !== -1) { nameCol = c; break; }
+      if (nameCol === -1) nameCol = 1;
+      for (var c2 = nameCol + 1; c2 < dateHdr.length; c2++) {
+        var dateVal = String(dateHdr[c2] || '').trim().toLowerCase();
+        if (!dateVal || dateVal.indexOf('total') !== -1 || dateVal.indexOf('%') !== -1) continue; // topic exists only under real date columns
+        var tv = String(topicRow[c2] || '').trim();
+        if (tv && tv.toLowerCase() !== 'topic') found[tv] = true;
+      }
+    }
+    return { success: true, topics: Object.keys(found) };
+  } catch (e) { return { success: false, error: e.message }; }
+}
+
