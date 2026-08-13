@@ -226,21 +226,29 @@ const API = (() => {
     return { success: false };
   }
 
+  function _withTimeout(promise, ms = 12000) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Request timeout (' + ms + 'ms)')), ms))
+    ]);
+  }
+
   /**
    * Fetch syllabus points from an external sheet link
    */
   async function getSyllabusPoints(link, code) {
     if (navigator.onLine) {
       try {
-        const params = { link: link };
+        const params = {};
+        if (link) params.link = link;
         if (code) params.code = code;
-        const data = await _get('getSyllabus', params);
+        const data = await _withTimeout(_get('getSyllabus', params), 12000);
         return data;
       } catch (e) {
         console.warn('API.getSyllabusPoints network fail:', e.message);
       }
     }
-    return { success: false, error: 'Offline' };
+    return { success: false, error: 'Offline or timeout' };
   }
 
   /**
@@ -275,7 +283,7 @@ const API = (() => {
       const params = { code, year };
       if (date) params.date = date;
       if (outputSheetId) params.outputSheetId = outputSheetId;
-      return await _get('getAttendance', params);
+      return await _withTimeout(_get('getAttendance', params), 12000);
     } catch (e) {
       return { success: false, error: e.message };
     }
