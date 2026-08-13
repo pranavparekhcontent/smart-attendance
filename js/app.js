@@ -454,6 +454,21 @@ const App = (() => {
     }[c])) : "";
   }
 
+  function isTopicTaught(syllabusPoint, taughtTopics) {
+    if (!taughtTopics || !taughtTopics.size || !syllabusPoint) return false;
+    const p = syllabusPoint.trim().toLowerCase();
+    if (taughtTopics.has(p)) return true;
+    const cleanP = p.replace(/^\d+[\.\)\-\:\s]+/, '').trim();
+    if (cleanP && taughtTopics.has(cleanP)) return true;
+    for (const t of taughtTopics) {
+      const cleanT = String(t).trim().toLowerCase().replace(/^\d+[\.\)\-\:\s]+/, '').trim();
+      if (cleanT && cleanP && (cleanT === cleanP || cleanT.includes(cleanP) || cleanP.includes(cleanT))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   function showSyllabusPicker(points, taughtTopics = new Set()) {
     return new Promise((resolve) => {
       const pickerId = 'syl-picker-' + Date.now();
@@ -475,9 +490,8 @@ const App = (() => {
       // Render syllabus chips
       points.forEach((pt, idx) => {
         const safeVal = escapeHtml(pt);
-        const ptLower = pt.trim().toLowerCase();
-        const isTaught = taughtTopics.has(ptLower);
-        html += `<button type="button" class="syl-chip ${isTaught ? 'taught' : ''}" data-idx="${idx}" data-value="${encodeURIComponent(pt)}" onclick="window._toggleSylChip(this)">
+        const isTaught = isTopicTaught(pt, taughtTopics);
+        html += `<button type="button" class="syl-chip ${isTaught ? 'taught' : ''}" data-idx="${idx}" data-raw-topic="${encodeURIComponent(pt)}" data-value="${encodeURIComponent(pt)}" onclick="window._toggleSylChip(this)">
                    <span class="syl-chip-dot"></span>
                    <span class="syl-chip-text" style="flex:1;">${safeVal}</span>
                    ${isTaught ? `<span class="syl-chip-badge"><i class="ph-bold ph-check" style="margin-right:2px;"></i> Taught</span>` : ''}
@@ -501,6 +515,24 @@ const App = (() => {
                    <i class="ph-bold ph-check-circle" style="margin-right:6px;"></i> Confirm
                  </button>
                </div>`;
+
+      // Live update taught chips if background fetch finishes while picker is open
+      window._updateTaughtChips = (updatedTaught) => {
+        if (!updatedTaught) return;
+        const chips = document.querySelectorAll(`#${pickerId} .syl-chip[data-raw-topic]`);
+        chips.forEach(chip => {
+          const raw = decodeURIComponent(chip.dataset.rawTopic || '');
+          if (isTopicTaught(raw, updatedTaught)) {
+            chip.classList.add('taught');
+            if (!chip.querySelector('.syl-chip-badge')) {
+              const badge = document.createElement('span');
+              badge.className = 'syl-chip-badge';
+              badge.innerHTML = '<i class="ph-bold ph-check" style="margin-right:2px;"></i> Taught';
+              chip.appendChild(badge);
+            }
+          }
+        });
+      };
 
       // Filter chips
       window._filterSylChips = (query) => {
@@ -616,40 +648,39 @@ const App = (() => {
       const taughtCacheKey = 'taught_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.outputSheetId || '');
       const cachedTaught = (window.API && API._getCache) ? API._getCache(taughtCacheKey) : null;
 
+      if (cachedTaught && cachedTaught.topics) {
+        cachedTaught.topics.forEach(t => taughtTopics.add(String(t).trim().toLowerCase()));
+      }
+
       if (cachedSyl && cachedSyl.points && cachedSyl.points.length > 0) {
         syllabusPoints = cachedSyl.points;
         hasSyllabusPoints = true;
-
-        if (cachedTaught && cachedTaught.topics) {
-          cachedTaught.topics.forEach(t => taughtTopics.add(String(t).trim().toLowerCase()));
-        } else if (state.selectedSubject.outputSheetId) {
-          // Fetch taught topics in background so next time it is ready
-          API.getTaughtTopics(state.selectedSubject.code, state.selectedSubject.outputSheetId)
-            .then(tt => {
-              if (tt && tt.topics) {
-                tt.topics.forEach(t => taughtTopics.add(String(t).trim().toLowerCase()));
-              }
-            }).catch(() => {});
-        }
       } else {
         showSpinner('Fetching Syllabus...', 'ph-book-open');
         try {
-          const [res, taughtRes] = await Promise.all([
-            API.getSyllabusPoints(state.selectedSubject.teachingPlanLink, state.selectedSubject.code),
-            API.getTaughtTopics(state.selectedSubject.code, state.selectedSubject.outputSheetId)
-          ]);
+          const res = await API.getSyllabusPoints(state.selectedSubject.teachingPlanLink, state.selectedSubject.code);
           if (res && res.success && res.points && res.points.length > 0) {
             syllabusPoints = res.points;
             hasSyllabusPoints = true;
           }
-          if (taughtRes && taughtRes.success && taughtRes.topics) {
-            taughtRes.topics.forEach(t => taughtTopics.add(String(t).trim().toLowerCase()));
-          }
         } catch (e) {
-          console.warn('Error fetching syllabus points / taught topics:', e);
+          console.warn('Error fetching syllabus points:', e);
         } finally {
           hideSpinner();
         }
+      }
+
+      // Always refresh taught topics in background (non-blocking)
+      if (state.selectedSubject.outputSheetId) {
+        API.getTaughtTopics(state.selectedSubject.code, state.selectedSubject.outputSheetId)
+          .then(tt => {
+            if (tt && tt.topics) {
+              tt.topics.forEach(t => taughtTopics.add(String(t).trim().toLowerCase()));
+              if (typeof window._updateTaughtChips === 'function') {
+                window._updateTaughtChips(taughtTopics);
+              }
+            }
+          }).catch(() => {});
       }
     }
 
