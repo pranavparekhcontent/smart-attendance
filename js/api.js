@@ -286,8 +286,32 @@ const API = (() => {
   }
 
   /**
-   * Get students for a year sheet
+   * Get taught topics for a subject from output sheet (lightweight)
    */
+  async function getTaughtTopics(code, outputSheetId) {
+    const cacheKey = 'taught_' + (code || '') + '_' + (outputSheetId || '');
+    const cached = _getCache(cacheKey);
+    if (cached && cached.topics) {
+      return cached;
+    }
+
+    if (navigator.onLine) {
+      try {
+        const params = { code: code || '' };
+        if (outputSheetId) params.outputSheetId = outputSheetId;
+        const data = await _withTimeout(_get('getTaughtTopics', params), 10000);
+        if (data && data.success && data.topics) {
+          _setCache(cacheKey, data);
+          return data;
+        }
+      } catch (e) {
+        console.warn('API.getTaughtTopics network fail:', e.message);
+      }
+    }
+    if (cached) return cached;
+    return { success: true, topics: [] };
+  }
+
   /**
    * Get students for a year sheet
    */
@@ -439,6 +463,7 @@ const API = (() => {
     getAllDataFromUrl,
     getConfig,
     getSyllabusPoints,
+    getTaughtTopics,
     getStudents,
     getAttendance,
     saveAttendance,
