@@ -667,6 +667,44 @@ const App = (() => {
     });
   }
 
+  async function forceMarkTaught(code, year, outputSheetId) {
+    try {
+      const att = await API.getAttendance(code, year, null, outputSheetId);
+      if (!att || !att.success || !att.records) return;
+      const taught = new Set();
+      att.records.forEach(r => {
+        if (r.topic) String(r.topic).split(',').forEach(p => {
+          const t = normT(p);
+          if (t) taught.add(t);
+          const raw = p.trim().toLowerCase();
+          if (raw) taught.add(raw);
+        });
+      });
+      document.querySelectorAll('.syl-chip:not(.syl-chip-other)').forEach(ch => {
+        const el = ch.querySelector('.syl-chip-text') || ch;
+        let txt = (el.textContent || '').trim().toLowerCase().replace(/taught|✓|✔/g, '').trim();
+        let txtNorm = normT(txt);
+        if (!txt && !txtNorm) return;
+        let hit = taught.has(txt) || taught.has(txtNorm);
+        if (!hit && (txtNorm.length >= 3 || txt.length >= 3)) {
+          for (const t of taught) {
+            if (t.length >= 3 && (t.includes(txtNorm) || txtNorm.includes(t) || t.includes(txt) || txt.includes(t))) {
+              hit = true;
+              break;
+            }
+          }
+        }
+        if (hit && !ch.classList.contains('taught')) {
+          ch.classList.add('taught');
+          if (!ch.querySelector('.syl-chip-badge')) {
+            ch.insertAdjacentHTML('beforeend', '<span class="syl-chip-badge"><i class="ph-bold ph-check" style="margin-right:2px;"></i> Taught</span>');
+          }
+        }
+      });
+    } catch (e) { console.warn('forceMarkTaught failed:', e); }
+  }
+  window.forceMarkTaught = forceMarkTaught;
+
   async function startAttendanceFlow() {
     if (!state.selectedSubject) return Toast.show('Please select a subject first', 'warning');
 
@@ -719,6 +757,7 @@ const App = (() => {
     }
 
     if (hasSyllabusPoints) {
+      forceMarkTaught(state.selectedSubject.code, state.selectedSubject.year, state.selectedSubject.outputSheetId);
       const choice = await showSyllabusPicker(syllabusPoints, taughtTopics, taughtPromise);
       if (choice === null) {
         // User cancelled syllabus selection
