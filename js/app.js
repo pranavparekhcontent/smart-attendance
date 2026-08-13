@@ -176,8 +176,9 @@ const App = (() => {
       if (s.teachingPlanLink) {
         API.getSyllabusPoints(s.teachingPlanLink, s.code).catch(() => {});
       }
-      if (s.outputSheetId) {
-        API.getTaughtTopics(s.code, s.outputSheetId).catch(() => {});
+      const outId = _getOutputSheetId(s);
+      if (outId) {
+        API.getTaughtTopics(s.code, outId).catch(() => {});
       }
     });
   }
@@ -459,28 +460,32 @@ const App = (() => {
     const p = String(syllabusPoint).trim().toLowerCase();
     if (taughtTopics.has(p)) return true;
 
-    // Normalizer: removes "1.", "1.1", "Unit 1 -", "Chapter 2:", "Practical 3 -", etc., and punctuation
+    // 1. Direct exact or substring match
+    for (const t of taughtTopics) {
+      const lowerT = String(t).trim().toLowerCase();
+      if (!lowerT) continue;
+      if (lowerT === p) return true;
+      if (p.length >= 3 && (lowerT.indexOf(p) !== -1 || p.indexOf(lowerT) !== -1)) return true;
+    }
+
+    // 2. Normalized match (strips unit/chapter/numbers and special chars)
     const normalize = (str) => {
       return String(str || '')
         .toLowerCase()
         .replace(/^(unit\s*\d+|chap\s*\d+|chapter\s*\d+|practical\s*\d+|experiment\s*\d+|exp\s*\d+|\d+[\.\)\-\:\s\d]+)[\.\)\-\:\s]*/i, '')
-        .replace(/[^a-z0-9]/g, ' ')
-        .replace(/\s+/g, ' ')
+        .replace(/[^a-z0-9]/g, '')
         .trim();
     };
 
     const normP = normalize(p);
-    if (normP && taughtTopics.has(normP)) return true;
+    if (!normP) return false;
+    if (taughtTopics.has(normP)) return true;
 
     for (const t of taughtTopics) {
-      const lowerT = String(t).trim().toLowerCase();
-      if (lowerT === p) return true;
-
-      const normT = normalize(lowerT);
-      if (normT && normP) {
-        if (normT === normP) return true;
-        if (normP.length >= 4 && (normT.indexOf(normP) !== -1 || normP.indexOf(normT) !== -1)) return true;
-      }
+      const normT = normalize(t);
+      if (!normT) continue;
+      if (normT === normP) return true;
+      if (normP.length >= 3 && (normT.indexOf(normP) !== -1 || normP.indexOf(normT) !== -1)) return true;
     }
     return false;
   }

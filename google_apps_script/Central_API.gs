@@ -1272,12 +1272,15 @@ function getTaughtTopics(code, outputSheetId, sheetId) {
     var s = sheets[i], name = s.getName().trim();
     var cleanSheetName = name.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
     
-    // Match by code or subject name
-    var isMatch = cleanSheetName.indexOf(cleanCode) !== -1 || (cleanSubName && cleanSheetName.indexOf(cleanSubName) !== -1);
+    // Match by code or subject name or single tab workbook
+    var isMatch = (sheets.length === 1) ||
+                  (cleanSheetName.indexOf(cleanCode) !== -1) ||
+                  (cleanSubName && cleanSheetName.indexOf(cleanSubName) !== -1) ||
+                  (name.toUpperCase().indexOf(cleanCode) !== -1);
     if (!isMatch) continue;
 
-    var lr = Math.min(s.getLastRow(), 15), lc = s.getLastColumn();
-    if (lr < 6 || lc < 3) continue;
+    var lr = Math.min(s.getLastRow(), 20), lc = s.getLastColumn();
+    if (lr < 2 || lc < 2) continue;
 
     var headerData = s.getRange(1, 1, lr, lc).getValues();
     var topicRowIdx = -1;
