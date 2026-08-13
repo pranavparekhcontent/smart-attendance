@@ -148,16 +148,29 @@ const API = (() => {
   /**
    * Fetch all boot data: teachers, subjects, attendance limit, config
    */
+  /**
+   * Fetch all boot data: teachers, subjects, attendance limit, config
+   * Fetches fresh data ONCE per session on launch, then reuses session cache
+   */
   async function getAllData() {
+    try {
+      const isSessionFetched = sessionStorage.getItem('session_data_fetched');
+      if (isSessionFetched === 'true') {
+        const sessionCached = _getCache('allData');
+        if (sessionCached) return sessionCached;
+      }
+    } catch(e) {}
+
     if (navigator.onLine) {
       try {
-        const data = await _get('getAllData');
-        if (data.success) {
+        const data = await _withTimeout(_get('getAllData'), 12000);
+        if (data && (data.success || data.teachers)) {
+          try { sessionStorage.setItem('session_data_fetched', 'true'); } catch(e) {}
           _setCache('allData', data);
           return data;
         }
       } catch (e) {
-        console.warn('API.getAllData network fail:', e.message);
+        console.warn('API.getAllData network fail/timeout:', e.message);
       }
     }
     const cached = _getCache('allData');
@@ -171,6 +184,14 @@ const API = (() => {
   async function getAllDataFromUrl(serverUrl) {
     if (!serverUrl) return { success: false, error: 'No server URL provided' };
     
+    try {
+      const isSessionFetched = sessionStorage.getItem('session_data_fetched');
+      if (isSessionFetched === 'true') {
+        const sessionCached = _getCache('allData');
+        if (sessionCached) return sessionCached;
+      }
+    } catch(e) {}
+
     // Ensure URL doesn't have trailing slash for consistency
     const baseUrl = serverUrl.replace(/\/$/, "");
     let targetUrl = `${baseUrl}?action=getAllData`;
@@ -192,6 +213,7 @@ const API = (() => {
       
       const data = await res.json();
       if (data && (data.success || data.teachers)) {
+        try { sessionStorage.setItem('session_data_fetched', 'true'); } catch(e) {}
         _setCache('allData', data);
         return data;
       } else {
@@ -228,7 +250,7 @@ const API = (() => {
     return { success: false };
   }
 
-  function _withTimeout(promise, ms = 12000) {
+  function _withTimeout(promise, ms = 25000) {
     return Promise.race([
       promise,
       new Promise((_, reject) => setTimeout(() => reject(new Error('Request timeout (' + ms + 'ms)')), ms))
@@ -239,17 +261,27 @@ const API = (() => {
    * Fetch syllabus points from an external sheet link
    */
   async function getSyllabusPoints(link, code) {
+    const cacheKey = 'syl_' + (code || '') + '_' + (link || '');
+    const cached = _getCache(cacheKey);
+    if (cached && cached.points && cached.points.length > 0) {
+      return cached;
+    }
+
     if (navigator.onLine) {
       try {
         const params = {};
         if (link) params.link = link;
         if (code) params.code = code;
-        const data = await _withTimeout(_get('getSyllabus', params), 12000);
+        const data = await _withTimeout(_get('getSyllabus', params), 25000);
+        if (data && data.success && data.points && data.points.length > 0) {
+          _setCache(cacheKey, data);
+        }
         return data;
       } catch (e) {
         console.warn('API.getSyllabusPoints network fail:', e.message);
       }
     }
+    if (cached) return cached;
     return { success: false, error: 'Offline or timeout' };
   }
 

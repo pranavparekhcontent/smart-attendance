@@ -1016,13 +1016,6 @@ function saveAttendance(records, outputSheetId, collegeName, managementName, she
     try {
       if (sheetId) CacheService.getScriptCache().remove('dash_' + sheetId);
     } catch(cErr) {}
-    try {
-      var code = records[0].code;
-      var faculty = records[0].teacher || records[0].faculty || 'Assigned';
-      syncTeachingPlan(code, faculty, sheetId);
-    } catch(e) {
-      Logger.log("Auto-sync teaching plan failed: " + e.message);
-    }
     return { success: true, saved: records.length };
   }
   return { success: false, error: String(res) };
@@ -1908,6 +1901,14 @@ function extractSpreadsheetId(url) {
 }
 
 function getSyllabus(link, code, sheetId) {
+  var cacheKey = 'syl_' + (code || '') + '_' + (link ? extractSpreadsheetId(link) : '');
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get(cacheKey);
+  if (cached) {
+    try {
+      return JSON.parse(cached);
+    } catch(e) {}
+  }
   try {
     var points = [];
 
@@ -1957,7 +1958,9 @@ function getSyllabus(link, code, sheetId) {
     }
 
     if (points && points.length > 0) {
-      return { success: true, points: points };
+      var res = { success: true, points: points };
+      try { cache.put(cacheKey, JSON.stringify(res), 7200); } catch(ce) {}
+      return res;
     }
     return { success: false, points: [], error: 'No syllabus points found for ' + (code || 'subject') };
   } catch (err) {
