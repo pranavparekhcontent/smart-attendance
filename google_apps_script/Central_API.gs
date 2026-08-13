@@ -2267,23 +2267,8 @@ function getTaughtTopics(code, outputSheetId, sheetId) {
     }
     // Extract topics from the row immediately below the header
     if (hdrRowIdx !== -1 && hdrRowIdx + 1 < attData.length) {
-      var rawHeaders = attData[hdrRowIdx] || [];
-      var hdrs = rawHeaders.map(function(cell) { return String(cell || '').trim(); });
-      var nameColIdx = -1, totalPColIdx = -1;
-      for (var c = 0; c < hdrs.length; c++) {
-        var val = hdrs[c].toLowerCase().trim();
-        if (val.indexOf('name') !== -1) nameColIdx = c;
-        if (val.indexOf('total p') !== -1 || val.indexOf('total') !== -1 || val.indexOf('% att') !== -1) {
-          totalPColIdx = c;
-          break;
-        }
-      }
-      if (nameColIdx === -1) nameColIdx = 1;
-      if (totalPColIdx === -1) totalPColIdx = hdrs.length;
-      
-      var firstDateColIdx = nameColIdx + 1;
       var topicRow = attData[hdrRowIdx + 1];
-      for (var c = firstDateColIdx; c < totalPColIdx; c++) {
+      for (var c = 0; c < topicRow.length; c++) {
         var t = String(topicRow[c] || '').trim();
         if (t) topics.push(t);
       }
