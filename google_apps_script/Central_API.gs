@@ -46,6 +46,9 @@ function doGet(e) {
       case 'getSyllabus':
         result = getSyllabus(e.parameter.link, e.parameter.code, sheetId);
         break;
+      case 'getTaughtTopics':
+        result = getTaughtTopics(e.parameter.code, e.parameter.outputSheetId, sheetId);
+        break;
       case 'getConfig':
       case 'getAllData': 
         result = getAllData(sheetId); 
@@ -2231,4 +2234,45 @@ function uploadAcademicDocument(data, sheetId) {
   } catch (err) {
     return { success: false, error: "Drive Upload Failed: " + err.message };
   }
+}
+
+function getTaughtTopics(code, outputSheetId, sheetId) {
+  if (!code) return { error: 'No code' };
+  if (!outputSheetId) outputSheetId = getOutputSheetId(sheetId);
+  var cleanOutId = extractSpreadsheetId(outputSheetId);
+  if (!cleanOutId) return { error: 'Invalid Output Sheet Link' };
+  var outSs; try { outSs = SpreadsheetApp.openById(cleanOutId); } catch(e) { return { error: 'Scan Fail' }; }
+  var sheets = outSs.getSheets();
+  var parsedInput = _parseSubjectCode(code);
+  var topics = [];
+  
+  for (var i = 0; i < sheets.length; i++) {
+    var s = sheets[i], name = s.getName();
+    var parsedSheetCode = _parseSubjectCode(name);
+    var cleanSheetName = name.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (parsedSheetCode.cleanBaseCode !== parsedInput.cleanBaseCode && cleanSheetName.indexOf(parsedInput.cleanBaseCode) !== 0) continue;
+    
+    var lc = s.getLastColumn();
+    if (lc < 6) continue;
+    
+    // Fetch only the first 30 rows to find header and topic row without timeout
+    var attData = s.getRange(1, 1, Math.min(s.getLastRow(), 30), lc).getValues();
+    var hdrRowIdx = -1;
+    for (var r = 0; r < attData.length; r++) {
+      var rowStr = attData[r].map(function(cell) { return String(cell || '').toLowerCase().trim(); }).join('|');
+      if (rowStr.indexOf('roll no') !== -1 && rowStr.indexOf('name') !== -1) {
+        hdrRowIdx = r;
+        break;
+      }
+    }
+    // Extract topics from the row immediately below the header
+    if (hdrRowIdx !== -1 && hdrRowIdx + 1 < attData.length) {
+      var topicRow = attData[hdrRowIdx + 1];
+      for (var c = 0; c < topicRow.length; c++) {
+        var t = String(topicRow[c] || '').trim();
+        if (t) topics.push(t);
+      }
+    }
+  }
+  return { success: true, topics: topics };
 }

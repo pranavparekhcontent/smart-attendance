@@ -628,15 +628,16 @@ const App = (() => {
         }
       }
 
-      // Check taught topics from local cache without blocking UI
-      const attCacheKey = 'att_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.year || '') + '__' + (state.selectedSubject.outputSheetId || '');
-      const cachedAtt = (window.API && API._getCache) ? API._getCache(attCacheKey) : null;
-      if (cachedAtt && cachedAtt.records) {
-        cachedAtt.records.forEach(rec => {
-          if (rec.topic && rec.topic.trim()) {
-            rec.topic.split(',').forEach(part => taughtTopics.add(part.trim().toLowerCase()));
-          }
-        });
+      // Check taught topics from local cache or fetch restricted topic row
+      try {
+        const topicsRes = await API.getTaughtTopics(state.selectedSubject.code, state.selectedSubject.outputSheetId);
+        if (topicsRes && topicsRes.success && topicsRes.topics) {
+          topicsRes.topics.forEach(t => {
+            t.split(',').forEach(part => taughtTopics.add(part.trim().toLowerCase()));
+          });
+        }
+      } catch (e) {
+        console.warn('Error fetching taught topics:', e);
       }
     }
 
