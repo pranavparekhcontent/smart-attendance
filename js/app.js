@@ -176,6 +176,9 @@ const App = (() => {
       if (s.teachingPlanLink) {
         API.getSyllabusPoints(s.teachingPlanLink, s.code).catch(() => {});
       }
+      if (s.code || s.outputSheetId) {
+        API.getTaughtTopics(s.code, s.outputSheetId).catch(() => {});
+      }
     });
   }
 
@@ -368,6 +371,8 @@ const App = (() => {
         document.getElementById('dash-subject-name').classList.remove('subject-placeholder');
         const card = document.getElementById('subject-card');
         if (card) card.classList.remove('heart-beat');
+        if (sub.teachingPlanLink) API.getSyllabusPoints(sub.teachingPlanLink, sub.code).catch(() => {});
+        API.getTaughtTopics(sub.code, sub.outputSheetId).catch(() => {});
       } else if (mode === 'reports') {
         state.reportsSubject = sub;
         state.reportsBatch = ''; // Reset batch
@@ -473,7 +478,13 @@ const App = (() => {
       points.forEach((pt, idx) => {
         const safeVal = escapeHtml(pt);
         const ptLower = pt.trim().toLowerCase();
-        const isTaught = taughtTopics.has(ptLower);
+        const isTaught = taughtTopics.has(ptLower) || 
+          Array.from(taughtTopics).some(t => {
+            if (!t) return false;
+            if (t === ptLower) return true;
+            if (t.length >= 3 && ptLower.length >= 3 && (ptLower.includes(t) || t.includes(ptLower))) return true;
+            return false;
+          });
         html += `<button type="button" class="syl-chip ${isTaught ? 'taught' : ''}" data-idx="${idx}" data-value="${encodeURIComponent(pt)}" onclick="window._toggleSylChip(this)">
                    <span class="syl-chip-dot"></span>
                    <span class="syl-chip-text" style="flex:1;">${safeVal}</span>
@@ -609,34 +620,78 @@ const App = (() => {
     if (state.selectedSubject.teachingPlanLink) {
       const sylCacheKey = 'syl_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.teachingPlanLink || '');
       const cachedSyl = (window.API && API._getCache) ? API._getCache(sylCacheKey) : null;
+      const topicsCacheKey = 'taught_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.outputSheetId || '');
+      const cachedTopics = (window.API && API._getCache) ? API._getCache(topicsCacheKey) : null;
+
+      let taughtRes = cachedTopics;
 
       if (cachedSyl && cachedSyl.points && cachedSyl.points.length > 0) {
         syllabusPoints = cachedSyl.points;
         hasSyllabusPoints = true;
-      } else {
+      }
+
+      // Pre-fetch missing syllabus points and taught topics silently via Promise.allSettled
+      const promises = [];
+      if (!hasSyllabusPoints) {
+        promises.push(API.getSyllabusPoints(state.selectedSubject.teachingPlanLink, state.selectedSubject.code));
+      }
+      promises.push(API.getTaughtTopics(state.selectedSubject.code, state.selectedSubject.outputSheetId));
+
+      if (!hasSyllabusPoints) {
         showSpinner('Fetching Syllabus...', 'ph-book-open');
         try {
-          const res = await API.getSyllabusPoints(state.selectedSubject.teachingPlanLink, state.selectedSubject.code);
-          if (res && res.success && res.points && res.points.length > 0) {
-            syllabusPoints = res.points;
+          const results = await Promise.allSettled(promises);
+          const sylSettled = results[0];
+          if (sylSettled && sylSettled.status === 'fulfilled' && sylSettled.value && sylSettled.value.success && sylSettled.value.points) {
+            syllabusPoints = sylSettled.value.points;
             hasSyllabusPoints = true;
           }
+          const topSettled = results[1];
+          if (topSettled && topSettled.status === 'fulfilled' && topSettled.value && topSettled.value.success) {
+            taughtRes = topSettled.value;
+          }
         } catch (e) {
-          console.warn('Error fetching syllabus points:', e);
+          console.warn('Error fetching syllabus/taught data:', e);
         } finally {
           hideSpinner();
         }
+      } else {
+        if (!taughtRes || !taughtRes.topics || taughtRes.topics.length === 0) {
+          try {
+            taughtRes = await API.getTaughtTopics(state.selectedSubject.code, state.selectedSubject.outputSheetId);
+          } catch(e) {}
+        }
       }
 
-      // Check taught topics from local cache without blocking UI
-      const attCacheKey = 'att_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.year || '') + '__' + (state.selectedSubject.outputSheetId || '');
-      const cachedAtt = (window.API && API._getCache) ? API._getCache(attCacheKey) : null;
-      if (cachedAtt && cachedAtt.records) {
-        cachedAtt.records.forEach(rec => {
-          if (rec.topic && rec.topic.trim()) {
-            rec.topic.split(',').forEach(part => taughtTopics.add(part.trim().toLowerCase()));
-          }
+      // Rebuild taughtTopics from getTaughtTopics result
+      if (taughtRes && taughtRes.topics && Array.isArray(taughtRes.topics)) {
+        taughtRes.topics.forEach(t => {
+          if (!t) return;
+          const full = String(t).trim().toLowerCase();
+          if (full) taughtTopics.add(full);
+          full.split(',').forEach(part => {
+            const p = part.trim().toLowerCase();
+            if (p) taughtTopics.add(p);
+          });
         });
+      }
+
+      // Backup source: check att cache if getTaughtTopics yielded nothing
+      if (taughtTopics.size === 0) {
+        const attCacheKey = 'att_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.year || '') + '__' + (state.selectedSubject.outputSheetId || '');
+        const cachedAtt = (window.API && API._getCache) ? API._getCache(attCacheKey) : null;
+        if (cachedAtt && cachedAtt.records) {
+          cachedAtt.records.forEach(rec => {
+            if (rec.topic && rec.topic.trim()) {
+              const full = rec.topic.trim().toLowerCase();
+              taughtTopics.add(full);
+              rec.topic.split(',').forEach(part => {
+                const p = part.trim().toLowerCase();
+                if (p) taughtTopics.add(p);
+              });
+            }
+          });
+        }
       }
     }
 
@@ -1028,6 +1083,17 @@ const App = (() => {
 
     if (res.success) {
       state.lastSavedRecords = records;
+      if (state.sessionTopic && state.selectedSubject) {
+        const topicsCacheKey = 'taught_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.outputSheetId || '');
+        const cachedTopics = (window.API && API._getCache) ? API._getCache(topicsCacheKey) : null;
+        const currentTopics = (cachedTopics && Array.isArray(cachedTopics.topics)) ? [...cachedTopics.topics] : [];
+        if (!currentTopics.includes(state.sessionTopic)) {
+          currentTopics.push(state.sessionTopic);
+        }
+        if (window.API && API._setCache) {
+          API._setCache(topicsCacheKey, { success: true, topics: currentTopics });
+        }
+      }
       showSessionCompleteDialog(
         students.filter(s => s.status === 'P').length,
         students.filter(s => s.status === 'A').length,

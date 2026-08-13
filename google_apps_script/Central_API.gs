@@ -43,6 +43,9 @@ function doGet(e) {
       case 'getAttendance': 
         result = getAttendance(e.parameter.code, e.parameter.year, e.parameter.date, e.parameter.outputSheetId, sheetId); 
         break;
+      case 'getTaughtTopics':
+        result = getTaughtTopics(e.parameter.code, e.parameter.outputSheetId, sheetId);
+        break;
       case 'getSyllabus':
         result = getSyllabus(e.parameter.link, e.parameter.code, sheetId);
         break;
@@ -2232,3 +2235,79 @@ function uploadAcademicDocument(data, sheetId) {
     return { success: false, error: "Drive Upload Failed: " + err.message };
   }
 }
+
+function getTaughtTopics(code, outputSheetId, sheetId) {
+  if (!code) return { success: false, error: 'No subject code provided' };
+  if (!outputSheetId) outputSheetId = getOutputSheetId(sheetId);
+  var cleanOutId = extractSpreadsheetId(outputSheetId);
+  if (!cleanOutId) return { success: false, error: 'Invalid Output Sheet Link' };
+
+  var cache = CacheService.getScriptCache();
+  var cacheKey = 'taught_v2_' + (code || '') + '_' + cleanOutId;
+  var cached = cache.get(cacheKey);
+  if (cached) {
+    try {
+      return JSON.parse(cached);
+    } catch(e) {}
+  }
+
+  var outSs;
+  try {
+    outSs = SpreadsheetApp.openById(cleanOutId);
+  } catch(e) {
+    return { success: false, error: 'Cannot open output sheet: ' + e.message };
+  }
+
+  var sheets = outSs.getSheets();
+  var parsedInput = _parseSubjectCode(code);
+  var topics = [];
+  var seenTopics = {};
+
+  for (var i = 0; i < sheets.length; i++) {
+    var s = sheets[i];
+    var name = s.getName();
+    var parsedSheetCode = _parseSubjectCode(name);
+    var cleanSheetName = name.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (parsedSheetCode.cleanBaseCode !== parsedInput.cleanBaseCode && cleanSheetName.indexOf(parsedInput.cleanBaseCode) !== 0) continue;
+
+    var lr = s.getLastRow();
+    var lc = s.getLastColumn();
+    if (lr < 6 || lc < 1) continue;
+
+    // Scan only top rows (first few rows: date row + topic row) — NO full student matrix scan
+    var scanRows = Math.min(lr, 15);
+    var topData = s.getRange(1, 1, scanRows, lc).getValues();
+
+    var hdrRowIdx = -1;
+    for (var r = 0; r < topData.length; r++) {
+      var rowStr = topData[r].map(function(cell) { return String(cell || '').toLowerCase().trim(); }).join('|');
+      if (rowStr.indexOf('roll no') !== -1 && rowStr.indexOf('name') !== -1 && (rowStr.indexOf('total p') !== -1 || rowStr.indexOf('% att') !== -1)) {
+        hdrRowIdx = r;
+        break;
+      }
+    }
+    if (hdrRowIdx === -1 && topData.length > 5) {
+      hdrRowIdx = 5;
+    }
+
+    if (hdrRowIdx !== -1 && hdrRowIdx + 1 < topData.length) {
+      var topicRow = topData[hdrRowIdx + 1];
+      for (var c = 0; c < topicRow.length; c++) {
+        var t = String(topicRow[c] || '').trim();
+        if (t && t.toLowerCase() !== 'topic') {
+          if (!seenTopics[t.toLowerCase()]) {
+            seenTopics[t.toLowerCase()] = true;
+            topics.push(t);
+          }
+        }
+      }
+    }
+  }
+
+  var res = { success: true, topics: topics };
+  try {
+    cache.put(cacheKey, JSON.stringify(res), 300);
+  } catch(ce) {}
+  return res;
+}
+
