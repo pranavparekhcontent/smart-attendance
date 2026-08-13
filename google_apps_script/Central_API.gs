@@ -2237,40 +2237,70 @@ function uploadAcademicDocument(data, sheetId) {
 }
 
 function getTaughtTopics(code, outputSheetId, sheetId) {
-  if (!code) return { error: 'No code' };
+  if (!code) return { success: false, topics: [], error: 'No code' };
+  if (!outputSheetId) {
+    try {
+      var targetIds = getTargetSheetIds(code, sheetId);
+      if (targetIds && targetIds.outputSheetId) outputSheetId = targetIds.outputSheetId;
+    } catch(e) {}
+  }
   if (!outputSheetId) outputSheetId = getOutputSheetId(sheetId);
   var cleanOutId = extractSpreadsheetId(outputSheetId);
-  if (!cleanOutId) return { error: 'Invalid Output Sheet Link' };
-  var outSs; try { outSs = SpreadsheetApp.openById(cleanOutId); } catch(e) { return { error: 'Scan Fail' }; }
+  if (!cleanOutId) return { success: false, topics: [], error: 'Invalid Output Sheet Link' };
+  
+  var outSs;
+  try {
+    outSs = _getSpreadsheet(cleanOutId);
+  } catch(e) {
+    try { outSs = SpreadsheetApp.openById(cleanOutId); } catch(e2) { return { success: false, topics: [], error: 'Scan Fail' }; }
+  }
+  if (!outSs) return { success: false, topics: [], error: 'Spreadsheet not found' };
+
   var sheets = outSs.getSheets();
   var parsedInput = _parseSubjectCode(code);
   var topics = [];
+  var seenTopics = {};
   
   for (var i = 0; i < sheets.length; i++) {
     var s = sheets[i], name = s.getName();
     var parsedSheetCode = _parseSubjectCode(name);
     var cleanSheetName = name.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (parsedSheetCode.cleanBaseCode !== parsedInput.cleanBaseCode && cleanSheetName.indexOf(parsedInput.cleanBaseCode) !== 0) continue;
+    
+    var matches = false;
+    if (parsedSheetCode.cleanBaseCode === parsedInput.cleanBaseCode) matches = true;
+    else if (cleanSheetName.indexOf(parsedInput.cleanBaseCode) === 0) matches = true;
+    else if (parsedInput.cleanBaseCode && cleanSheetName.indexOf(parsedInput.cleanBaseCode) !== -1) matches = true;
+    else if (name.toLowerCase() === code.toLowerCase()) matches = true;
+    
+    if (!matches) continue;
     
     var lc = s.getLastColumn();
-    if (lc < 6) continue;
+    if (lc < 3) continue;
     
-    // Fetch only the first 30 rows to find header and topic row without timeout
-    var attData = s.getRange(1, 1, Math.min(s.getLastRow(), 30), lc).getValues();
+    var maxR = Math.min(s.getLastRow(), 25);
+    if (maxR < 2) continue;
+    var attData = s.getRange(1, 1, maxR, lc).getValues();
     var hdrRowIdx = -1;
     for (var r = 0; r < attData.length; r++) {
       var rowStr = attData[r].map(function(cell) { return String(cell || '').toLowerCase().trim(); }).join('|');
-      if (rowStr.indexOf('roll no') !== -1 && rowStr.indexOf('name') !== -1) {
+      if (rowStr.indexOf('roll') !== -1 && rowStr.indexOf('name') !== -1) {
         hdrRowIdx = r;
         break;
       }
     }
-    // Extract topics from the row immediately below the header
+    
+    if (hdrRowIdx === -1 && attData.length > 5) {
+      hdrRowIdx = 5;
+    }
+    
     if (hdrRowIdx !== -1 && hdrRowIdx + 1 < attData.length) {
       var topicRow = attData[hdrRowIdx + 1];
       for (var c = 0; c < topicRow.length; c++) {
         var t = String(topicRow[c] || '').trim();
-        if (t) topics.push(t);
+        if (t && !seenTopics[t.toLowerCase()]) {
+          seenTopics[t.toLowerCase()] = true;
+          topics.push(t);
+        }
       }
     }
   }

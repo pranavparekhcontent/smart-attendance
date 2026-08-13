@@ -371,6 +371,8 @@ const App = (() => {
         document.getElementById('dash-subject-name').classList.remove('subject-placeholder');
         const card = document.getElementById('subject-card');
         if (card) card.classList.remove('heart-beat');
+        if (sub.teachingPlanLink) API.getSyllabusPoints(sub.teachingPlanLink, sub.code).catch(() => {});
+        API.getTaughtTopics(sub.code, sub.outputSheetId).catch(() => {});
       } else if (mode === 'reports') {
         state.reportsSubject = sub;
         state.reportsBatch = ''; // Reset batch
@@ -476,7 +478,13 @@ const App = (() => {
       points.forEach((pt, idx) => {
         const safeVal = escapeHtml(pt);
         const ptLower = pt.trim().toLowerCase();
-        const isTaught = taughtTopics.has(ptLower);
+        const isTaught = taughtTopics.has(ptLower) || 
+          Array.from(taughtTopics).some(t => {
+            if (!t) return false;
+            if (t === ptLower) return true;
+            if (t.length >= 3 && (ptLower.includes(t) || t.includes(ptLower))) return true;
+            return false;
+          });
         html += `<button type="button" class="syl-chip ${isTaught ? 'taught' : ''}" data-idx="${idx}" data-value="${encodeURIComponent(pt)}" onclick="window._toggleSylChip(this)">
                    <span class="syl-chip-dot"></span>
                    <span class="syl-chip-text" style="flex:1;">${safeVal}</span>
@@ -611,33 +619,57 @@ const App = (() => {
 
     if (state.selectedSubject.teachingPlanLink) {
       const sylCacheKey = 'syl_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.teachingPlanLink || '');
+      const topicsCacheKey = 'taught_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.outputSheetId || '');
       const cachedSyl = (window.API && API._getCache) ? API._getCache(sylCacheKey) : null;
+      const cachedTopics = (window.API && API._getCache) ? API._getCache(topicsCacheKey) : null;
 
       if (cachedSyl && cachedSyl.points && cachedSyl.points.length > 0) {
         syllabusPoints = cachedSyl.points;
         hasSyllabusPoints = true;
-      } else {
-        showSpinner('Fetching Syllabus...', 'ph-book-open');
+      }
+      if (cachedTopics && cachedTopics.topics && cachedTopics.topics.length > 0) {
+        cachedTopics.topics.forEach(t => {
+          t.split(',').forEach(part => {
+            const p = part.trim().toLowerCase();
+            if (p) taughtTopics.add(p);
+          });
+        });
+      }
+
+      // If either syllabus or taught topics was not cached, fetch what's missing in parallel
+      if (!hasSyllabusPoints || taughtTopics.size === 0) {
+        showSpinner('Loading Syllabus...', 'ph-book-open');
         try {
-          const res = await API.getSyllabusPoints(state.selectedSubject.teachingPlanLink, state.selectedSubject.code);
-          if (res && res.success && res.points && res.points.length > 0) {
-            syllabusPoints = res.points;
+          const fetchPromises = [];
+          if (!hasSyllabusPoints) {
+            fetchPromises.push(API.getSyllabusPoints(state.selectedSubject.teachingPlanLink, state.selectedSubject.code));
+          } else {
+            fetchPromises.push(Promise.resolve(cachedSyl));
+          }
+          if (taughtTopics.size === 0) {
+            fetchPromises.push(API.getTaughtTopics(state.selectedSubject.code, state.selectedSubject.outputSheetId));
+          } else {
+            fetchPromises.push(Promise.resolve(cachedTopics));
+          }
+
+          const [sylRes, topRes] = await Promise.all(fetchPromises);
+          if (sylRes && sylRes.success && sylRes.points && sylRes.points.length > 0) {
+            syllabusPoints = sylRes.points;
             hasSyllabusPoints = true;
           }
+          if (topRes && topRes.success && topRes.topics) {
+            topRes.topics.forEach(t => {
+              t.split(',').forEach(part => {
+                const p = part.trim().toLowerCase();
+                if (p) taughtTopics.add(p);
+              });
+            });
+          }
         } catch (e) {
-          console.warn('Error fetching syllabus points:', e);
+          console.warn('Error loading syllabus/taught topics:', e);
         } finally {
           hideSpinner();
         }
-      }
-
-      // Check taught topics from local cache without blocking UI
-      const topicsCacheKey = 'taught_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.outputSheetId || '');
-      const cachedTopics = (window.API && API._getCache) ? API._getCache(topicsCacheKey) : null;
-      if (cachedTopics && cachedTopics.success && cachedTopics.topics) {
-        cachedTopics.topics.forEach(t => {
-          t.split(',').forEach(part => taughtTopics.add(part.trim().toLowerCase()));
-        });
       }
     }
 
