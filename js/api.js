@@ -406,23 +406,28 @@ const API = (() => {
    * Get taught topics directly (1-row scan from output sheet)
    */
   async function getTaughtTopics(code, outputSheetId) {
-    const cacheKey = 'taught_' + (code || '') + '_' + (outputSheetId || '');
-    if (navigator.onLine) {
-      try {
-        const params = { code };
-        if (outputSheetId) params.outputSheetId = outputSheetId;
-        const res = await _withTimeout(_get('getTaughtTopics', params), 15000);
-        if (res && res.success) {
-          _setCache(cacheKey, res);
-          return res;
-        }
-      } catch (e) {
-        console.warn('API.getTaughtTopics network fail:', e.message);
-      }
+    if (!navigator.onLine) {
+      const cacheKey = 'taught_' + (code || '') + '_' + (outputSheetId || '');
+      const cached = _getCache(cacheKey);
+      if (cached) return cached;
+      return { success: false, error: 'Offline' };
     }
-    const cached = _getCache(cacheKey);
-    if (cached) return cached;
-    return { success: false, error: 'Offline or failed to fetch taught topics' };
+    try {
+      const params = { code: code || '' };
+      if (outputSheetId) params.outputSheetId = outputSheetId;
+      const res = await _withTimeout(_get('getTaughtTopics', params), 15000);
+      if (res && res.success) {
+        const cacheKey = 'taught_' + (code || '') + '_' + (outputSheetId || '');
+        _setCache(cacheKey, res);
+      }
+      return res;
+    } catch (e) {
+      console.warn('API.getTaughtTopics network fail:', e.message);
+      const cacheKey = 'taught_' + (code || '') + '_' + (outputSheetId || '');
+      const cached = _getCache(cacheKey);
+      if (cached) return cached;
+      return { success: false, error: e.message };
+    }
   }
 
   // Automatic bootup sync & background retry loop
