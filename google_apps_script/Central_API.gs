@@ -1254,7 +1254,7 @@ function getTaughtTopics(code, outputSheetId, sheetId) {
   var cleanOutId = extractSpreadsheetId(outputSheetId);
   if (!cleanOutId) return { success: false, topics: [] };
 
-  var cacheKey = 'taught_' + (code || '') + '_' + cleanOutId;
+  var cacheKey = 'taught_' + String(code || '').replace(/[^a-zA-Z0-9]/g, '') + '_' + cleanOutId;
   var cache = CacheService.getScriptCache();
   var cached = cache.get(cacheKey);
   if (cached) {
@@ -1262,38 +1262,60 @@ function getTaughtTopics(code, outputSheetId, sheetId) {
   }
 
   var outSs; try { outSs = SpreadsheetApp.openById(cleanOutId); } catch(e) { return { success: false, topics: [] }; }
-  var sheets = outSs.getSheets(), parsedInput = _parseSubjectCode(code);
+  var sheets = outSs.getSheets();
+  var cleanCode = String(code || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  var subInfo = getSubjectInfo(code, sheetId);
+  var cleanSubName = (subInfo && subInfo.name) ? subInfo.name.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() : '';
   var topics = [], seen = {};
 
   for (var i = 0; i < sheets.length; i++) {
-    var s = sheets[i], name = s.getName();
-    var parsedSheetCode = _parseSubjectCode(name);
-    var cleanSheetName = name.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (parsedSheetCode.cleanBaseCode !== parsedInput.cleanBaseCode && cleanSheetName.indexOf(parsedInput.cleanBaseCode) !== 0) continue;
+    var s = sheets[i], name = s.getName().trim();
+    var cleanSheetName = name.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    
+    // Match by code or subject name
+    var isMatch = cleanSheetName.indexOf(cleanCode) !== -1 || (cleanSubName && cleanSheetName.indexOf(cleanSubName) !== -1);
+    if (!isMatch) continue;
 
     var lr = Math.min(s.getLastRow(), 15), lc = s.getLastColumn();
-    if (lr < 6 || lc < 6) continue;
+    if (lr < 6 || lc < 3) continue;
 
     var headerData = s.getRange(1, 1, lr, lc).getValues();
-    var hdrRowIdx = -1;
+    var topicRowIdx = -1;
+
+    // 1. Look for explicit row labeled "Topic"
     for (var r = 0; r < headerData.length; r++) {
-      var rowStr = headerData[r].map(function(cell) { return String(cell || '').toLowerCase().trim(); }).join('|');
-      if (rowStr.indexOf('roll no') !== -1 && rowStr.indexOf('name') !== -1 && (rowStr.indexOf('total p') !== -1 || rowStr.indexOf('% att') !== -1)) {
-        hdrRowIdx = r;
+      var col0 = String(headerData[r][0] || '').toLowerCase().trim();
+      var col1 = String(headerData[r][1] || '').toLowerCase().trim();
+      var col2 = String(headerData[r][2] || '').toLowerCase().trim();
+      if (col0 === 'topic' || col1 === 'topic' || col2 === 'topic') {
+        topicRowIdx = r;
         break;
       }
     }
-    if (hdrRowIdx === -1) hdrRowIdx = 5;
-    if (hdrRowIdx + 1 >= headerData.length) continue;
 
-    var topicRow = headerData[hdrRowIdx + 1] || [];
-    for (var c = 2; c < topicRow.length; c++) {
-      var t = String(topicRow[c] || '').trim();
-      if (t && t.toLowerCase() !== 'total p' && t.toLowerCase() !== '% att' && t.indexOf('=') !== 0) {
+    // 2. If not explicitly labeled, locate header row with roll no / name and take next row
+    if (topicRowIdx === -1) {
+      for (var r = 0; r < headerData.length; r++) {
+        var rowStr = headerData[r].map(function(cell) { return String(cell || '').toLowerCase().trim(); }).join('|');
+        if (rowStr.indexOf('roll no') !== -1 && rowStr.indexOf('name') !== -1) {
+          if (r + 1 < headerData.length) topicRowIdx = r + 1;
+          break;
+        }
+      }
+    }
+
+    if (topicRowIdx !== -1) {
+      var topicRow = headerData[topicRowIdx] || [];
+      for (var c = 0; c < topicRow.length; c++) {
+        var t = String(topicRow[c] || '').trim();
+        if (!t) continue;
+        var lowerT = t.toLowerCase();
+        if (lowerT === 'topic' || lowerT === 'roll no' || lowerT === 'name' || lowerT === 'total p' || lowerT === 'total a' || lowerT === 'total' || lowerT.indexOf('% att') !== -1 || t.indexOf('=') === 0) continue;
+        
         var parts = t.split(',');
         for (var p = 0; p < parts.length; p++) {
           var cleanT = parts[p].trim();
-          if (cleanT && !seen[cleanT.toLowerCase()]) {
+          if (cleanT && cleanT.length > 1 && !seen[cleanT.toLowerCase()]) {
             seen[cleanT.toLowerCase()] = true;
             topics.push(cleanT);
           }

@@ -456,14 +456,30 @@ const App = (() => {
 
   function isTopicTaught(syllabusPoint, taughtTopics) {
     if (!taughtTopics || !taughtTopics.size || !syllabusPoint) return false;
-    const p = syllabusPoint.trim().toLowerCase();
+    const p = String(syllabusPoint).trim().toLowerCase();
     if (taughtTopics.has(p)) return true;
-    const cleanP = p.replace(/^\d+[\.\)\-\:\s]+/, '').trim();
-    if (cleanP && taughtTopics.has(cleanP)) return true;
+
+    // Normalizer: removes "1.", "1.1", "Unit 1 -", "Chapter 2:", "Practical 3 -", etc., and punctuation
+    const normalize = (str) => {
+      return String(str || '')
+        .toLowerCase()
+        .replace(/^(unit\s*\d+|chap\s*\d+|chapter\s*\d+|practical\s*\d+|experiment\s*\d+|exp\s*\d+|\d+[\.\)\-\:\s\d]+)[\.\)\-\:\s]*/i, '')
+        .replace(/[^a-z0-9]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    };
+
+    const normP = normalize(p);
+    if (normP && taughtTopics.has(normP)) return true;
+
     for (const t of taughtTopics) {
-      const cleanT = String(t).trim().toLowerCase().replace(/^\d+[\.\)\-\:\s]+/, '').trim();
-      if (cleanT && cleanP && (cleanT === cleanP || cleanT.includes(cleanP) || cleanP.includes(cleanT))) {
-        return true;
+      const lowerT = String(t).trim().toLowerCase();
+      if (lowerT === p) return true;
+
+      const normT = normalize(lowerT);
+      if (normT && normP) {
+        if (normT === normP) return true;
+        if (normP.length >= 4 && (normT.indexOf(normP) !== -1 || normP.indexOf(normT) !== -1)) return true;
       }
     }
     return false;
@@ -1072,6 +1088,18 @@ const App = (() => {
 
     if (res.success) {
       state.lastSavedRecords = records;
+
+      // Immediately cache newly taught topic locally so green badge appears instantly next time
+      if (state.sessionTopic && state.selectedSubject) {
+        const taughtKey = 'taught_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.outputSheetId || '');
+        const cached = (window.API && API._getCache) ? (API._getCache(taughtKey) || { success: true, topics: [] }) : { success: true, topics: [] };
+        if (!cached.topics) cached.topics = [];
+        if (!cached.topics.includes(state.sessionTopic)) {
+          cached.topics.push(state.sessionTopic);
+          if (window.API && API._setCache) API._setCache(taughtKey, cached);
+        }
+      }
+
       showSessionCompleteDialog(
         students.filter(s => s.status === 'P').length,
         students.filter(s => s.status === 'A').length,
