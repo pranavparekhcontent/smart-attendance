@@ -25,7 +25,9 @@ const API = (() => {
     }
     let url = _getBaseUrl() + '?action=' + encodeURIComponent(action);
     for (const k in params) {
-      url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+      if (params[k] !== undefined && params[k] !== null && params[k] !== '' && params[k] !== 'undefined' && params[k] !== 'null') {
+        url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+      }
     }
 
     let lastErr;

@@ -2238,8 +2238,10 @@ function uploadAcademicDocument(data, sheetId) {
 
 function getTaughtTopics(code, outputSheetId, sheetId) {
   try {
+    if (outputSheetId === 'undefined' || outputSheetId === 'null') outputSheetId = '';
     if (!outputSheetId && sheetId) outputSheetId = getOutputSheetId(sheetId);
     var cleanOutId = extractSpreadsheetId(outputSheetId);
+    if (!cleanOutId && sheetId) cleanOutId = extractSpreadsheetId(getOutputSheetId(sheetId));
     if (!cleanOutId) return { success: false, error: 'Invalid Output Sheet Link' };
     var outSs = SpreadsheetApp.openById(cleanOutId);
     var sheets = outSs.getSheets();
