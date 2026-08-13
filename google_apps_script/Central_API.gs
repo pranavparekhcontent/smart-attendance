@@ -1251,14 +1251,20 @@ function getAttendance(code, year, date, outputSheetId, sheetId) {
 function getTaughtTopics(code, outputSheetId, sheetId) {
   if (!code) return { success: false, topics: [] };
   if (!outputSheetId) outputSheetId = getOutputSheetId(sheetId);
+  if (!outputSheetId && sheetId) {
+    try { outputSheetId = getTargetSheetIds(code, sheetId).outputSheetId; } catch(e) {}
+  }
   var cleanOutId = extractSpreadsheetId(outputSheetId);
   if (!cleanOutId) return { success: false, topics: [] };
 
-  var cacheKey = 'taught_' + String(code || '').replace(/[^a-zA-Z0-9]/g, '') + '_' + cleanOutId;
+  var cacheKey = 'taught_v2_' + String(code || '').replace(/[^a-zA-Z0-9]/g, '') + '_' + cleanOutId;
   var cache = CacheService.getScriptCache();
   var cached = cache.get(cacheKey);
   if (cached) {
-    try { return JSON.parse(cached); } catch(e) {}
+    try {
+      var parsed = JSON.parse(cached);
+      if (parsed && parsed.topics && parsed.topics.length > 0) return parsed;
+    } catch(e) {}
   }
 
   var outSs; try { outSs = SpreadsheetApp.openById(cleanOutId); } catch(e) { return { success: false, topics: [] }; }
@@ -1279,7 +1285,7 @@ function getTaughtTopics(code, outputSheetId, sheetId) {
                   (name.toUpperCase().indexOf(cleanCode) !== -1);
     if (!isMatch) continue;
 
-    var lr = Math.min(s.getLastRow(), 20), lc = s.getLastColumn();
+    var lr = Math.min(s.getLastRow(), 25), lc = s.getLastColumn();
     if (lr < 2 || lc < 2) continue;
 
     var headerData = s.getRange(1, 1, lr, lc).getValues();
@@ -1328,7 +1334,9 @@ function getTaughtTopics(code, outputSheetId, sheetId) {
   }
 
   var res = { success: true, topics: topics };
-  try { cache.put(cacheKey, JSON.stringify(res), 600); } catch(ce) {}
+  if (topics.length > 0) {
+    try { cache.put(cacheKey, JSON.stringify(res), 300); } catch(ce) {}
+  }
   return res;
 }
 

@@ -307,8 +307,10 @@ const API = (() => {
         const params = { code: code || '' };
         if (cleanOutId) params.outputSheetId = cleanOutId;
         const data = await _withTimeout(_get('getTaughtTopics', params), 10000);
-        if (data && data.success && data.topics) {
+        if (data && data.success && data.topics && data.topics.length > 0) {
           _setCache(cacheKey, data);
+          return data;
+        } else if (data && data.success) {
           return data;
         }
       } catch (e) {
