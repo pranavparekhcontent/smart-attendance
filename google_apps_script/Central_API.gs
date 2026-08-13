@@ -43,6 +43,9 @@ function doGet(e) {
       case 'getAttendance': 
         result = getAttendance(e.parameter.code, e.parameter.year, e.parameter.date, e.parameter.outputSheetId, sheetId); 
         break;
+      case 'getTaughtTopics':
+        result = getTaughtTopics(e.parameter.code, e.parameter.outputSheetId, sheetId);
+        break;
       case 'getSyllabus':
         result = getSyllabus(e.parameter.link, e.parameter.code, sheetId);
         break;
@@ -1245,6 +1248,65 @@ function getAttendance(code, year, date, outputSheetId, sheetId) {
   return result;
 }
 
+function getTaughtTopics(code, outputSheetId, sheetId) {
+  if (!code) return { success: false, topics: [] };
+  if (!outputSheetId) outputSheetId = getOutputSheetId(sheetId);
+  var cleanOutId = extractSpreadsheetId(outputSheetId);
+  if (!cleanOutId) return { success: false, topics: [] };
+
+  var cacheKey = 'taught_' + (code || '') + '_' + cleanOutId;
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get(cacheKey);
+  if (cached) {
+    try { return JSON.parse(cached); } catch(e) {}
+  }
+
+  var outSs; try { outSs = SpreadsheetApp.openById(cleanOutId); } catch(e) { return { success: false, topics: [] }; }
+  var sheets = outSs.getSheets(), parsedInput = _parseSubjectCode(code);
+  var topics = [], seen = {};
+
+  for (var i = 0; i < sheets.length; i++) {
+    var s = sheets[i], name = s.getName();
+    var parsedSheetCode = _parseSubjectCode(name);
+    var cleanSheetName = name.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (parsedSheetCode.cleanBaseCode !== parsedInput.cleanBaseCode && cleanSheetName.indexOf(parsedInput.cleanBaseCode) !== 0) continue;
+
+    var lr = Math.min(s.getLastRow(), 15), lc = s.getLastColumn();
+    if (lr < 6 || lc < 6) continue;
+
+    var headerData = s.getRange(1, 1, lr, lc).getValues();
+    var hdrRowIdx = -1;
+    for (var r = 0; r < headerData.length; r++) {
+      var rowStr = headerData[r].map(function(cell) { return String(cell || '').toLowerCase().trim(); }).join('|');
+      if (rowStr.indexOf('roll no') !== -1 && rowStr.indexOf('name') !== -1 && (rowStr.indexOf('total p') !== -1 || rowStr.indexOf('% att') !== -1)) {
+        hdrRowIdx = r;
+        break;
+      }
+    }
+    if (hdrRowIdx === -1) hdrRowIdx = 5;
+    if (hdrRowIdx + 1 >= headerData.length) continue;
+
+    var topicRow = headerData[hdrRowIdx + 1] || [];
+    for (var c = 2; c < topicRow.length; c++) {
+      var t = String(topicRow[c] || '').trim();
+      if (t && t.toLowerCase() !== 'total p' && t.toLowerCase() !== '% att' && t.indexOf('=') !== 0) {
+        var parts = t.split(',');
+        for (var p = 0; p < parts.length; p++) {
+          var cleanT = parts[p].trim();
+          if (cleanT && !seen[cleanT.toLowerCase()]) {
+            seen[cleanT.toLowerCase()] = true;
+            topics.push(cleanT);
+          }
+        }
+      }
+    }
+  }
+
+  var res = { success: true, topics: topics };
+  try { cache.put(cacheKey, JSON.stringify(res), 600); } catch(ce) {}
+  return res;
+}
+
 function _getAttendanceUncached(code, year, date, outputSheetId, sheetId) {
   if (!code) return { error: 'No code' };
   if (!outputSheetId) outputSheetId = getOutputSheetId(sheetId);
@@ -1321,6 +1383,10 @@ function _getAttendanceUncached(code, year, date, outputSheetId, sheetId) {
     for (var r = hdrRowIdx + 2; r < attData.length; r++) {
        var rowData = attData[r];
        if (!rowData || rowData.length === 0) continue;
+       var rollVal = String(rowData[0] || '').trim();
+       var nameVal = String(rowData[nameColIdx] || '').trim();
+       if (!rollVal && !nameVal) continue; // Skip blank empty trailing rows!
+
        for (var d = 0; d < dates.length; d++) {
           var colIdx = dates[d].index;
           if (colIdx >= rowData.length) continue;
@@ -1336,7 +1402,7 @@ function _getAttendanceUncached(code, year, date, outputSheetId, sheetId) {
                batch: batch,
                faculty: "Assigned",
                rollNo: rowData[0],
-               name: rowData[1],
+               name: rowData[nameColIdx] || rowData[1],
                status: st,
                topic: topicVal
              });
