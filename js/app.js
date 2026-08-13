@@ -176,6 +176,9 @@ const App = (() => {
       if (s.teachingPlanLink) {
         API.getSyllabusPoints(s.teachingPlanLink, s.code).catch(() => {});
       }
+      if (s.code && s.year) {
+        API.getAttendance(s.code, s.year, null, s.outputSheetId).catch(() => {});
+      }
     });
   }
 
@@ -368,6 +371,14 @@ const App = (() => {
         document.getElementById('dash-subject-name').classList.remove('subject-placeholder');
         const card = document.getElementById('subject-card');
         if (card) card.classList.remove('heart-beat');
+
+        // Silent background pre-fetches for instant zero-latency syllabus picker
+        if (sub.teachingPlanLink) {
+          API.getSyllabusPoints(sub.teachingPlanLink, sub.code).catch(() => {});
+        }
+        if (sub.code && sub.year) {
+          API.getAttendance(sub.code, sub.year, null, sub.outputSheetId).catch(() => {});
+        }
       } else if (mode === 'reports') {
         state.reportsSubject = sub;
         state.reportsBatch = ''; // Reset batch
@@ -499,6 +510,26 @@ const App = (() => {
                  </button>
                </div>`;
 
+      // Dynamically update taught chips on screen when background fetch resolves
+      function _updateTaughtChipsInDOM(taughtSet) {
+        if (!taughtSet || !taughtSet.size) return;
+        const chips = document.querySelectorAll(`#${pickerId} .syl-chip[data-value]`);
+        chips.forEach(chip => {
+          const rawVal = decodeURIComponent(chip.dataset.value || '').trim().toLowerCase();
+          if (taughtSet.has(rawVal)) {
+            if (!chip.classList.contains('taught')) {
+              chip.classList.add('taught');
+            }
+            if (!chip.querySelector('.syl-chip-badge')) {
+              const badge = document.createElement('span');
+              badge.className = 'syl-chip-badge';
+              badge.innerHTML = '<i class="ph-bold ph-check" style="margin-right:2px;"></i> Taught';
+              chip.appendChild(badge);
+            }
+          }
+        });
+      }
+
       // Filter chips
       window._filterSylChips = (query) => {
         const q = query.toLowerCase().trim();
@@ -628,15 +659,51 @@ const App = (() => {
         }
       }
 
-      // Check taught topics from local cache without blocking UI
+      // Check taught topics from local cache without blocking UI (0ms instant)
       const attCacheKey = 'att_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.year || '') + '__' + (state.selectedSubject.outputSheetId || '');
       const cachedAtt = (window.API && API._getCache) ? API._getCache(attCacheKey) : null;
       if (cachedAtt && cachedAtt.records) {
         cachedAtt.records.forEach(rec => {
           if (rec.topic && rec.topic.trim()) {
-            rec.topic.split(',').forEach(part => taughtTopics.add(part.trim().toLowerCase()));
+            rec.topic.split(',').forEach(part => {
+              const t = part.trim().toLowerCase();
+              if (t) taughtTopics.add(t);
+            });
           }
         });
+      }
+
+      // Silent background fetch so latest taught topics refresh in real-time
+      if (state.selectedSubject.code && state.selectedSubject.year) {
+        API.getAttendance(state.selectedSubject.code, state.selectedSubject.year, null, state.selectedSubject.outputSheetId)
+          .then(res => {
+            if (res && res.records && res.records.length > 0) {
+              res.records.forEach(rec => {
+                if (rec.topic && rec.topic.trim()) {
+                  rec.topic.split(',').forEach(part => {
+                    const t = part.trim().toLowerCase();
+                    if (t) taughtTopics.add(t);
+                  });
+                }
+              });
+              const chips = document.querySelectorAll('.syl-chip[data-value]');
+              chips.forEach(chip => {
+                const rawVal = decodeURIComponent(chip.dataset.value || '').trim().toLowerCase();
+                if (taughtTopics.has(rawVal)) {
+                  if (!chip.classList.contains('taught')) {
+                    chip.classList.add('taught');
+                  }
+                  if (!chip.querySelector('.syl-chip-badge')) {
+                    const badge = document.createElement('span');
+                    badge.className = 'syl-chip-badge';
+                    badge.innerHTML = '<i class="ph-bold ph-check" style="margin-right:2px;"></i> Taught';
+                    chip.appendChild(badge);
+                  }
+                }
+              });
+            }
+          })
+          .catch(e => console.warn('Silent attendance check error:', e));
       }
     }
 
@@ -1027,6 +1094,18 @@ const App = (() => {
     hideSpinner();
 
     if (res.success) {
+      // Instantly update local taught cache with current session topic
+      if (state.sessionTopic && state.selectedSubject) {
+        const attCacheKey = 'att_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.year || '') + '__' + (state.selectedSubject.outputSheetId || '');
+        const cachedAtt = (window.API && API._getCache) ? API._getCache(attCacheKey) : null;
+        if (cachedAtt && cachedAtt.records) {
+          cachedAtt.records.push({ topic: state.sessionTopic });
+          if (API._setCache) API._setCache(attCacheKey, cachedAtt);
+        } else if (window.API && API._setCache) {
+          API._setCache(attCacheKey, { success: true, records: [{ topic: state.sessionTopic }] });
+        }
+      }
+
       state.lastSavedRecords = records;
       showSessionCompleteDialog(
         students.filter(s => s.status === 'P').length,
