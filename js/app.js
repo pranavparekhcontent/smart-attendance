@@ -484,7 +484,7 @@ const App = (() => {
       points.forEach((pt, idx) => {
         const safeVal = escapeHtml(pt);
         const ptLower = pt.trim().toLowerCase();
-        const isTaught = taughtTopics.has(ptLower);
+        const isTaught = taughtTopics.has(ptLower) || (ptLower.length > 4 && Array.from(taughtTopics).some(t => t && t.length > 4 && (ptLower.includes(t) || t.includes(ptLower))));
         html += `<button type="button" class="syl-chip ${isTaught ? 'taught' : ''}" data-idx="${idx}" data-value="${encodeURIComponent(pt)}" onclick="window._toggleSylChip(this)">
                    <span class="syl-chip-dot"></span>
                    <span class="syl-chip-text" style="flex:1;">${safeVal}</span>
@@ -641,69 +641,72 @@ const App = (() => {
       const sylCacheKey = 'syl_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.teachingPlanLink || '');
       const cachedSyl = (window.API && API._getCache) ? API._getCache(sylCacheKey) : null;
 
-      if (cachedSyl && cachedSyl.points && cachedSyl.points.length > 0) {
-        syllabusPoints = cachedSyl.points;
-        hasSyllabusPoints = true;
-      } else {
-        showSpinner('Fetching Syllabus...', 'ph-book-open');
-        try {
-          const res = await API.getSyllabusPoints(state.selectedSubject.teachingPlanLink, state.selectedSubject.code);
-          if (res && res.success && res.points && res.points.length > 0) {
-            syllabusPoints = res.points;
-            hasSyllabusPoints = true;
-          }
-        } catch (e) {
-          console.warn('Error fetching syllabus points:', e);
-        } finally {
-          hideSpinner();
-        }
-      }
-
-      // Check taught topics from local cache without blocking UI (0ms instant)
       const attCacheKey = 'att_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.year || '') + '__' + (state.selectedSubject.outputSheetId || '');
       const cachedAtt = (window.API && API._getCache) ? API._getCache(attCacheKey) : null;
-      if (cachedAtt && cachedAtt.records) {
-        cachedAtt.records.forEach(rec => {
+
+      const populateTaughtSet = (records) => {
+        if (!records || !records.length) return;
+        records.forEach(rec => {
           if (rec.topic && rec.topic.trim()) {
+            const raw = rec.topic.trim().toLowerCase();
+            taughtTopics.add(raw);
             rec.topic.split(',').forEach(part => {
               const t = part.trim().toLowerCase();
               if (t) taughtTopics.add(t);
             });
           }
         });
-      }
+      };
 
-      // Silent background fetch so latest taught topics refresh in real-time
-      if (state.selectedSubject.code && state.selectedSubject.year) {
-        API.getAttendance(state.selectedSubject.code, state.selectedSubject.year, null, state.selectedSubject.outputSheetId)
-          .then(res => {
-            if (res && res.records && res.records.length > 0) {
-              res.records.forEach(rec => {
-                if (rec.topic && rec.topic.trim()) {
-                  rec.topic.split(',').forEach(part => {
-                    const t = part.trim().toLowerCase();
-                    if (t) taughtTopics.add(t);
-                  });
-                }
-              });
-              const chips = document.querySelectorAll('.syl-chip[data-value]');
-              chips.forEach(chip => {
-                const rawVal = decodeURIComponent(chip.dataset.value || '').trim().toLowerCase();
-                if (taughtTopics.has(rawVal)) {
-                  if (!chip.classList.contains('taught')) {
-                    chip.classList.add('taught');
+      // If both syllabus and attendance are already cached, load instantly (0ms)
+      if (cachedSyl && cachedSyl.points && cachedSyl.points.length > 0 && cachedAtt && cachedAtt.records) {
+        syllabusPoints = cachedSyl.points;
+        hasSyllabusPoints = true;
+        populateTaughtSet(cachedAtt.records);
+      } else {
+        // Fetch missing syllabus and/or attendance concurrently with spinner before opening picker
+        showSpinner('Loading Syllabus & Topics...', 'ph-book-open');
+        try {
+          const promises = [];
+
+          if (cachedSyl && cachedSyl.points && cachedSyl.points.length > 0) {
+            syllabusPoints = cachedSyl.points;
+            hasSyllabusPoints = true;
+          } else {
+            promises.push(
+              API.getSyllabusPoints(state.selectedSubject.teachingPlanLink, state.selectedSubject.code)
+                .then(res => {
+                  if (res && res.success && res.points && res.points.length > 0) {
+                    syllabusPoints = res.points;
+                    hasSyllabusPoints = true;
                   }
-                  if (!chip.querySelector('.syl-chip-badge')) {
-                    const badge = document.createElement('span');
-                    badge.className = 'syl-chip-badge';
-                    badge.innerHTML = '<i class="ph-bold ph-check" style="margin-right:2px;"></i> Taught';
-                    chip.appendChild(badge);
+                })
+                .catch(e => console.warn('Error fetching syllabus points:', e))
+            );
+          }
+
+          if (cachedAtt && cachedAtt.records) {
+            populateTaughtSet(cachedAtt.records);
+          } else if (state.selectedSubject.code && state.selectedSubject.year) {
+            promises.push(
+              API.getAttendance(state.selectedSubject.code, state.selectedSubject.year, null, state.selectedSubject.outputSheetId)
+                .then(res => {
+                  if (res && res.records) {
+                    populateTaughtSet(res.records);
                   }
-                }
-              });
-            }
-          })
-          .catch(e => console.warn('Silent attendance check error:', e));
+                })
+                .catch(e => console.warn('Error fetching attendance for taught topics:', e))
+            );
+          }
+
+          if (promises.length > 0) {
+            await Promise.all(promises);
+          }
+        } catch (e) {
+          console.warn('startAttendanceFlow load error:', e);
+        } finally {
+          hideSpinner();
+        }
       }
     }
 
