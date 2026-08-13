@@ -374,6 +374,15 @@ function getAttendanceLimit(sheetId) {
 }
 
 function getAllData(sheetId) {
+  var cache = CacheService.getScriptCache();
+  var cacheKey = 'allData_' + (sheetId || '');
+  var cached = cache.get(cacheKey);
+  if (cached) {
+    try {
+      return JSON.parse(cached);
+    } catch(e) {}
+  }
+
   var ss = _getSpreadsheet(sheetId), ws = ss.getSheetByName('subjects'), subs = [], config = { collegeName: '', managementName: '' };
   var teachers = [], limit = 75;
   if (ws) {
@@ -461,7 +470,11 @@ function getAllData(sheetId) {
       }
     }
   }
-  return { success: !!ws, teachers: teachers, subjects: subs, attendanceLimit: limit, config: config };
+  var result = { success: !!ws, teachers: teachers, subjects: subs, attendanceLimit: limit, config: config };
+  if (ws && (teachers.length > 0 || subs.length > 0)) {
+    try { cache.put(cacheKey, JSON.stringify(result), 3600); } catch(ce) {}
+  }
+  return result;
 }
 
 function getOutputSheetId(sheetId) {
@@ -1015,6 +1028,11 @@ function saveAttendance(records, outputSheetId, collegeName, managementName, she
   if (res === true) {
     try {
       if (sheetId) CacheService.getScriptCache().remove('dash_' + sheetId);
+      var code = records[0] && records[0].code ? records[0].code : '';
+      var cleanOutId = extractSpreadsheetId(outputSheetId);
+      if (code) {
+        CacheService.getScriptCache().remove('attrep_v1_' + code + '__' + cleanOutId);
+      }
     } catch(cErr) {}
     return { success: true, saved: records.length };
   }
@@ -1206,6 +1224,23 @@ function setupFormulasAndConditions(sheet, rows, pctCol, startRow, startCol, lim
 }
 
 function getAttendance(code, year, date, outputSheetId, sheetId) {
+  var cleanOutId = extractSpreadsheetId(outputSheetId || getOutputSheetId(sheetId));
+  var cacheKey = 'attrep_v1_' + (code || '') + '_' + (year || '') + '_' + (date || '') + '_' + (cleanOutId || '');
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get(cacheKey);
+  if (cached) {
+    try {
+      return JSON.parse(cached);
+    } catch(e) {}
+  }
+  var result = _getAttendanceUncached(code, year, date, outputSheetId, sheetId);
+  if (result && result.success) {
+    try { cache.put(cacheKey, JSON.stringify(result), 300); } catch(ce) {}
+  }
+  return result;
+}
+
+function _getAttendanceUncached(code, year, date, outputSheetId, sheetId) {
   if (!code) return { error: 'No code' };
   if (!outputSheetId) outputSheetId = getOutputSheetId(sheetId);
   var cleanOutId = extractSpreadsheetId(outputSheetId);

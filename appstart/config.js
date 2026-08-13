@@ -7,7 +7,7 @@ const APP_CONFIG = {
 
   // ── App Identity ──────────────────────────────────────────
   APP_NAME: "Smart Attendance",
-  APP_VERSION: "1.0.35",   // Fallback only. Auto-synced from version.json at runtime.
+  APP_VERSION: "1.0.36",   // Fallback only. Auto-synced from version.json at runtime.
 
   // ── Layout ───────────────────────────────────────────────
   LAYOUT: "mobile-first",
@@ -47,15 +47,51 @@ const APP_CONFIG = {
     }
 
     return {
-      allData: fetch(targetUrl)
-        .then(r => {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          return r.json();
-        })
-        .catch(err => {
-          console.error("AppStart Data Fetcher Error:", err);
-          return { success: false, error: err.message };
-        }),
+      allData: (async () => {
+        // 1. If offline, return localStorage cache immediately
+        if (!navigator.onLine) {
+          try {
+            const raw = localStorage.getItem('attendance_cache_allData');
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (parsed && parsed.data && (parsed.data.teachers || parsed.data.subjects)) {
+                return parsed.data;
+              }
+            }
+          } catch(e) {}
+        }
+
+        // 2. Fetch fresh data over network with 15s timeout
+        try {
+          const res = await Promise.race([
+            fetch(targetUrl),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Data fetch timeout (15s)')), 15000))
+          ]);
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const json = await res.json();
+          if (json && (json.success || json.teachers || json.subjects)) {
+            try {
+              localStorage.setItem('attendance_cache_allData', JSON.stringify({ ts: Date.now(), data: json }));
+            } catch(e) {}
+            return json;
+          }
+          throw new Error((json && json.error) || 'Empty data received');
+        } catch (err) {
+          console.warn("AppStart Data Fetcher network issue, checking local cache...", err.message);
+          // 3. Network failed: use local cache if valid
+          try {
+            const raw = localStorage.getItem('attendance_cache_allData');
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (parsed && parsed.data && ((parsed.data.teachers && parsed.data.teachers.length) || (parsed.data.subjects && parsed.data.subjects.length))) {
+                return parsed.data;
+              }
+            }
+          } catch(e) {}
+          // 4. No cache and network failed: THROW so AppStart shows Error screen with Retry button (never a blank card!)
+          throw new Error(err.message || 'Unable to load college roster. Please check internet and tap Retry.');
+        }
+      })()
     };
   },
 

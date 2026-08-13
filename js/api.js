@@ -288,13 +288,16 @@ const API = (() => {
   /**
    * Get students for a year sheet
    */
+  /**
+   * Get students for a year sheet
+   */
   async function getStudents(sheetName, batch) {
     const cacheKey = 'students_' + sheetName + (batch ? '_' + batch : '');
     if (navigator.onLine) {
       try {
         const params = { sheet: sheetName };
         if (batch) params.batch = batch;
-        const data = await _get('getStudents', params);
+        const data = await _withTimeout(_get('getStudents', params), 30000);
         if (data.success) {
           _setCache(cacheKey, data);
           return data;
@@ -312,13 +315,24 @@ const API = (() => {
    * Get existing attendance records for session-check
    */
   async function getAttendance(code, year, date, outputSheetId) {
-    if (!navigator.onLine) return { success: false, error: 'Offline' };
+    const cacheKey = 'att_' + (code || '') + '_' + (year || '') + '_' + (date || '') + '_' + (outputSheetId || '');
+    if (!navigator.onLine) {
+      const cached = _getCache(cacheKey);
+      if (cached) return cached;
+      return { success: false, error: 'Offline' };
+    }
     try {
       const params = { code, year };
       if (date) params.date = date;
       if (outputSheetId) params.outputSheetId = outputSheetId;
-      return await _withTimeout(_get('getAttendance', params), 12000);
+      const res = await _withTimeout(_get('getAttendance', params), 45000);
+      if (res && res.success) {
+        _setCache(cacheKey, res);
+      }
+      return res;
     } catch (e) {
+      const cached = _getCache(cacheKey);
+      if (cached) return cached;
       return { success: false, error: e.message };
     }
   }
@@ -430,6 +444,8 @@ const API = (() => {
     saveAttendance,
     syncPending,
     getPendingCount,
-    extractSheetId
+    extractSheetId,
+    _getCache,
+    _setCache
   };
 })();

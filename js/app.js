@@ -1107,29 +1107,52 @@ const App = (() => {
   async function fetchReportData() {
     if (!state.reportsSubject) return;
 
-    showSpinner('Fetching Report Data...', 'ph-chart-line-up');
-    const [res, studentRes] = await Promise.all([
-      API.getAttendance(state.reportsSubject.code, state.reportsSubject.year, null, state.reportsSubject.outputSheetId),
-      API.getStudents(state.reportsSubject.year)
-    ]);
-    hideSpinner();
-
-    if (res.success) {
-      state.reportData = res.records || [];
-
-      // Dynamic Batch Detection — from student list as intended
-      if (state.reportsSubject.type.toUpperCase() === 'PRACTICAL') {
-        const studentBatches = [...new Set((studentRes.students || []).map(s => s.batch))].filter(b => b).sort();
-        state.availableReportBatches = studentBatches;
-
-        renderReportBatchSelector();
-      }
-
+    const cacheKey = 'report_' + [state.reportsSubject.code, state.reportsSubject.year, state.reportsSubject.outputSheetId || ''].join('_');
+    const cached = (window.API && API._getCache) ? API._getCache(cacheKey) : null;
+    if (cached && cached.records && cached.records.length > 0) {
+      state.reportData = cached.records;
       document.getElementById('reports-filters').style.display = 'block';
       document.getElementById('rep-footer').style.display = 'block';
-      renderReport();
+      renderReport(); // Instant paint from cache
     } else {
-      Toast.show(res.error || 'Failed to fetch reports', 'error');
+      showSpinner('Fetching Report Data...', 'ph-chart-line-up');
+    }
+
+    try {
+      const [att, stu] = await Promise.allSettled([
+        API.getAttendance(state.reportsSubject.code, state.reportsSubject.year, null, state.reportsSubject.outputSheetId),
+        API.getStudents(state.reportsSubject.year)
+      ]);
+
+      const res = att.status === 'fulfilled' ? att.value : { success: false, error: (att.reason && att.reason.message) || 'Attendance request failed' };
+      const studentRes = stu.status === 'fulfilled' ? stu.value : { success: false, students: [] };
+
+      if (res && res.success) {
+        state.reportData = res.records || [];
+        if (window.API && API._setCache) API._setCache(cacheKey, { records: state.reportData });
+
+        // Dynamic Batch Detection — from student list as intended
+        if (state.reportsSubject.type.toUpperCase() === 'PRACTICAL' && studentRes.success) {
+          const studentBatches = [...new Set((studentRes.students || []).map(s => s.batch))].filter(b => b).sort();
+          state.availableReportBatches = studentBatches;
+          renderReportBatchSelector();
+        }
+
+        document.getElementById('reports-filters').style.display = 'block';
+        document.getElementById('rep-footer').style.display = 'block';
+        renderReport();
+      } else if (!state.reportData || state.reportData.length === 0) {
+        Toast.show((res && res.error) || 'Failed to fetch reports', 'error');
+      } else {
+        Toast.show('Showing cached report (server slow)', 'warning');
+      }
+    } catch (e) {
+      console.error('fetchReportData error:', e);
+      if (!state.reportData || state.reportData.length === 0) {
+        Toast.show(e.message || 'Request timeout', 'error');
+      }
+    } finally {
+      hideSpinner(); // GUARANTEED to hide spinner under all circumstances!
     }
   }
 
@@ -1648,6 +1671,8 @@ const App = (() => {
     document.getElementById('modal-backdrop').style.display = 'none';
   }
 
+  let _spinnerWatchdog = null;
+
   function showSpinner(msg, iconClass = 'ph-cloud-arrow-down') {
     const overlay = document.getElementById('loader-overlay');
     const icon = document.getElementById('loader-icon');
@@ -1658,9 +1683,16 @@ const App = (() => {
       text.innerText = msg;
       overlay.style.display = 'flex';
     }
+
+    clearTimeout(_spinnerWatchdog);
+    _spinnerWatchdog = setTimeout(() => {
+      hideSpinner();
+      if (window.Toast) Toast.show('Request timed out. Please tap and try again.', 'warning');
+    }, 45000);
   }
 
   function hideSpinner() {
+    clearTimeout(_spinnerWatchdog);
     const overlay = document.getElementById('loader-overlay');
     if (overlay) overlay.style.display = 'none';
   }

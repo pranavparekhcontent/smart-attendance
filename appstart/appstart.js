@@ -778,6 +778,14 @@ const AppStart = (() => {
 
     try {
       const fetchedData = await dataPromise;
+
+      // Validate startup data before dismissing overlay
+      const _ad = fetchedData && (fetchedData.allData || fetchedData._default || fetchedData);
+      const _valid = _ad && ((_ad.teachers && _ad.teachers.length) || (_ad.subjects && _ad.subjects.length) || _ad.success);
+      if (!_valid) {
+        throw new Error("Startup roster incomplete. Please tap Try Again.");
+      }
+
       _setPhase("ph-data", "done", `${Object.keys(fetchedData).length} source(s) ready`);
       
       const resultPayload = {
