@@ -484,7 +484,7 @@ const App = (() => {
       points.forEach((pt, idx) => {
         const safeVal = escapeHtml(pt);
         const ptLower = pt.trim().toLowerCase();
-        const isTaught = taughtTopics.has(ptLower) || (ptLower.length > 4 && Array.from(taughtTopics).some(t => t && t.length > 4 && (ptLower.includes(t) || t.includes(ptLower))));
+        const isTaught = taughtTopics.has(ptLower);
         html += `<button type="button" class="syl-chip ${isTaught ? 'taught' : ''}" data-idx="${idx}" data-value="${encodeURIComponent(pt)}" onclick="window._toggleSylChip(this)">
                    <span class="syl-chip-dot"></span>
                    <span class="syl-chip-text" style="flex:1;">${safeVal}</span>
