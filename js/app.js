@@ -529,6 +529,7 @@ const App = (() => {
           }
         });
       }
+      window._updateTaughtChipsInDOM = _updateTaughtChipsInDOM;
 
       // Filter chips
       window._filterSylChips = (query) => {
@@ -623,6 +624,7 @@ const App = (() => {
         delete window._toggleSylCustom;
         delete window._confirmSyllabus;
         delete window._cancelSyllabus;
+        delete window._updateTaughtChipsInDOM;
       }
 
       showModal(html);
@@ -656,44 +658,49 @@ const App = (() => {
             });
           }
         });
+        if (window._updateTaughtChipsInDOM) {
+          window._updateTaughtChipsInDOM(taughtTopics);
+        }
       };
 
-      // If both syllabus and attendance are already cached, load instantly (0ms)
-      if (cachedSyl && cachedSyl.points && cachedSyl.points.length > 0 && cachedAtt && cachedAtt.records) {
+      if (cachedAtt && cachedAtt.records) {
+        populateTaughtSet(cachedAtt.records);
+      }
+
+      // If syllabus is cached locally, load immediately with zero delay
+      if (cachedSyl && cachedSyl.points && cachedSyl.points.length > 0) {
         syllabusPoints = cachedSyl.points;
         hasSyllabusPoints = true;
-        populateTaughtSet(cachedAtt.records);
+
+        // If attendance was not cached yet, fetch in background and badge taught topics live
+        if (!cachedAtt && state.selectedSubject.code && state.selectedSubject.year) {
+          API.getAttendance(state.selectedSubject.code, state.selectedSubject.year, null, state.selectedSubject.outputSheetId)
+            .then(res => {
+              if (res && res.records) populateTaughtSet(res.records);
+            })
+            .catch(() => {});
+        }
       } else {
-        // Fetch missing syllabus and/or attendance concurrently with spinner before opening picker
-        showSpinner('Loading Syllabus & Topics...', 'ph-book-open');
+        // Fetch missing syllabus with spinner only if not available locally
+        showSpinner('Loading Syllabus...', 'ph-book-open');
         try {
           const promises = [];
+          promises.push(
+            API.getSyllabusPoints(state.selectedSubject.teachingPlanLink, state.selectedSubject.code)
+              .then(res => {
+                if (res && res.success && res.points && res.points.length > 0) {
+                  syllabusPoints = res.points;
+                  hasSyllabusPoints = true;
+                }
+              })
+              .catch(e => console.warn('Error fetching syllabus points:', e))
+          );
 
-          if (cachedSyl && cachedSyl.points && cachedSyl.points.length > 0) {
-            syllabusPoints = cachedSyl.points;
-            hasSyllabusPoints = true;
-          } else {
-            promises.push(
-              API.getSyllabusPoints(state.selectedSubject.teachingPlanLink, state.selectedSubject.code)
-                .then(res => {
-                  if (res && res.success && res.points && res.points.length > 0) {
-                    syllabusPoints = res.points;
-                    hasSyllabusPoints = true;
-                  }
-                })
-                .catch(e => console.warn('Error fetching syllabus points:', e))
-            );
-          }
-
-          if (cachedAtt && cachedAtt.records) {
-            populateTaughtSet(cachedAtt.records);
-          } else if (state.selectedSubject.code && state.selectedSubject.year) {
+          if (!cachedAtt && state.selectedSubject.code && state.selectedSubject.year) {
             promises.push(
               API.getAttendance(state.selectedSubject.code, state.selectedSubject.year, null, state.selectedSubject.outputSheetId)
                 .then(res => {
-                  if (res && res.records) {
-                    populateTaughtSet(res.records);
-                  }
+                  if (res && res.records) populateTaughtSet(res.records);
                 })
                 .catch(e => console.warn('Error fetching attendance for taught topics:', e))
             );
@@ -705,15 +712,14 @@ const App = (() => {
         } catch (e) {
           console.warn('startAttendanceFlow load error:', e);
         } finally {
-          if (!hasSyllabusPoints) hideSpinner();
+          hideSpinner();
         }
       }
     }
 
     if (hasSyllabusPoints) {
-      const pickerPromise = showSyllabusPicker(syllabusPoints, taughtTopics);
       hideSpinner();
-      const choice = await pickerPromise;
+      const choice = await showSyllabusPicker(syllabusPoints, taughtTopics);
       if (choice === null) {
         // User cancelled syllabus selection
         return;
@@ -1771,7 +1777,10 @@ const App = (() => {
 
   function closeModal(e) {
     if (e && e.target !== document.getElementById('modal-backdrop')) return;
-    document.getElementById('modal-backdrop').style.display = 'none';
+    const backdrop = document.getElementById('modal-backdrop');
+    const content = document.getElementById('modal-content');
+    if (backdrop) backdrop.style.display = 'none';
+    if (content) content.innerHTML = '';
   }
 
   let _spinnerWatchdog = null;

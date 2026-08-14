@@ -7,7 +7,7 @@ const APP_CONFIG = {
 
   // ── App Identity ──────────────────────────────────────────
   APP_NAME: "Smart Attendance",
-  APP_VERSION: "1.0.60",   // Fallback only. Auto-synced from version.json at runtime.
+  APP_VERSION: "1.0.61",   // Fallback only. Auto-synced from version.json at runtime.
 
   // ── Layout ───────────────────────────────────────────────
   LAYOUT: "mobile-first",
