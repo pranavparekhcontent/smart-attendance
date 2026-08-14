@@ -312,6 +312,33 @@ const API = (() => {
   }
 
   /**
+   * Fast scan: fetch taught topic names only (without downloading full student matrix)
+   */
+  async function getTaughtTopics(code, outputSheetId) {
+    const cleanCode = String(code || '').trim();
+    const cacheKey = 'taught_' + cleanCode + '_' + String(outputSheetId || '').trim();
+    const cached = _getCache(cacheKey);
+    if (cached && cached.topics) {
+      return cached;
+    }
+    if (navigator.onLine) {
+      try {
+        const params = { code: cleanCode };
+        if (outputSheetId) params.outputSheetId = outputSheetId;
+        const res = await _withTimeout(_get('getTaughtTopics', params), 15000);
+        if (res && res.success && res.topics) {
+          _setCache(cacheKey, res);
+        }
+        return res;
+      } catch (e) {
+        console.warn('API.getTaughtTopics network fail:', e.message);
+      }
+    }
+    if (cached) return cached;
+    return { success: false, topics: [] };
+  }
+
+  /**
    * Get existing attendance records for session-check
    */
   async function getAttendance(code, year, date, outputSheetId) {
@@ -439,6 +466,7 @@ const API = (() => {
     getAllDataFromUrl,
     getConfig,
     getSyllabusPoints,
+    getTaughtTopics,
     getStudents,
     getAttendance,
     saveAttendance,
