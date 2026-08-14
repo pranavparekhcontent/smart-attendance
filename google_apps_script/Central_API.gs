@@ -1180,10 +1180,19 @@ function getTaughtTopics(code, outputSheetId, sheetId) {
     var parsedInput = _parseSubjectCode(code);
     var found = {};
     for (var i = 0; i < sheets.length; i++) {
-      var s = sheets[i];
-      var parsedSheet = _parseSubjectCode(s.getName());
-      var cleanName = s.getName().toUpperCase().replace(/[^A-Z0-9]/g, '');
-      if (parsedSheet.cleanBaseCode !== parsedInput.cleanBaseCode && cleanName.indexOf(parsedInput.cleanBaseCode) !== 0) continue;
+      var name = s.getName();
+      var parsedSheet = _parseSubjectCode(name);
+      var cleanName = name.toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+      var isMatch = (!code || code === '*' || code === 'all');
+      if (!isMatch) {
+        if (parsedSheet.cleanBaseCode === parsedInput.cleanBaseCode ||
+            cleanName.indexOf(parsedInput.cleanBaseCode) !== -1 ||
+            (parsedSheet.cleanBaseCode && parsedInput.cleanBaseCode && parsedSheet.cleanBaseCode.indexOf(parsedInput.cleanBaseCode) !== -1)) {
+          isMatch = true;
+        }
+      }
+      if (!isMatch) continue;
       var lc = s.getLastColumn(), lr = s.getLastRow();
       if (lc < 6 || lr < 6) continue;
       var rows = s.getRange(1, 1, Math.min(15, lr), lc).getValues(); // only top rows, never full matrix
