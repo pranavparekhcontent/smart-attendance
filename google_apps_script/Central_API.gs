@@ -1180,6 +1180,7 @@ function getTaughtTopics(code, outputSheetId, sheetId) {
     var parsedInput = _parseSubjectCode(code);
     var found = {};
     for (var i = 0; i < sheets.length; i++) {
+      var s = sheets[i];
       var name = s.getName();
       var parsedSheet = _parseSubjectCode(name);
       var cleanName = name.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -1194,23 +1195,37 @@ function getTaughtTopics(code, outputSheetId, sheetId) {
       }
       if (!isMatch) continue;
       var lc = s.getLastColumn(), lr = s.getLastRow();
-      if (lc < 6 || lr < 6) continue;
-      var rows = s.getRange(1, 1, Math.min(15, lr), lc).getValues(); // only top rows, never full matrix
-      var hdr = -1;
+      if (lc < 3 || lr < 6) continue;
+      var rows = s.getRange(1, 1, Math.min(15, lr), lc).getValues();
+      var topicRowIdx = -1, hdr = -1;
       for (var r = 0; r < rows.length; r++) {
-        var rowStr = rows[r].map(function (c) { return String(c || '').toLowerCase().trim(); }).join('|');
-        if (rowStr.indexOf('roll no') !== -1 && rowStr.indexOf('name') !== -1 && (rowStr.indexOf('total p') !== -1 || rowStr.indexOf('% att') !== -1)) { hdr = r; break; }
+        var c1 = String(rows[r][0] || '').toLowerCase().trim();
+        var c2 = String(rows[r][1] || '').toLowerCase().trim();
+        if (c2 === 'topic') topicRowIdx = r;
+        if (c1.indexOf('roll') !== -1 || c2.indexOf('name') !== -1) hdr = r;
       }
-      if (hdr === -1) hdr = 5;
-      var dateHdr = rows[hdr] || [], topicRow = rows[hdr + 1] || [];
+      if (topicRowIdx === -1) topicRowIdx = (hdr !== -1 ? hdr + 1 : 6);
+      if (hdr === -1) hdr = topicRowIdx - 1;
+      
+      var dateHdr = rows[hdr] || [], topicRow = rows[topicRowIdx] || [];
       var nameCol = -1;
-      for (var c = 0; c < dateHdr.length; c++) if (String(dateHdr[c] || '').toLowerCase().indexOf('name') !== -1) { nameCol = c; break; }
+      for (var c = 0; c < dateHdr.length; c++) {
+        var hv = String(dateHdr[c] || '').toLowerCase();
+        if (hv.indexOf('name') !== -1) { nameCol = c; break; }
+      }
       if (nameCol === -1) nameCol = 1;
-      for (var c2 = nameCol + 1; c2 < dateHdr.length; c2++) {
-        var dateVal = String(dateHdr[c2] || '').trim().toLowerCase();
-        if (!dateVal || dateVal.indexOf('total') !== -1 || dateVal.indexOf('%') !== -1) continue; // topic exists only under real date columns
-        var tv = String(topicRow[c2] || '').trim();
-        if (tv && tv.toLowerCase() !== 'topic') found[tv] = true;
+      for (var c = nameCol + 1; c < topicRow.length; c++) {
+        var dateVal = String(dateHdr[c] || '').trim().toLowerCase();
+        if (dateVal.indexOf('total') !== -1 || dateVal.indexOf('%') !== -1) continue;
+        var tv = String(topicRow[c] || '').trim();
+        if (tv && tv.toLowerCase() !== 'topic' && tv.toLowerCase() !== 'roll no' && tv.toLowerCase() !== 'name') {
+          // If comma separated topics, split and add each
+          found[tv] = true;
+          tv.split(',').forEach(function(part) {
+            var p = part.trim();
+            if (p) found[p] = true;
+          });
+        }
       }
     }
     return { success: true, topics: Object.keys(found) };
