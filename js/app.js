@@ -641,7 +641,9 @@ const App = (() => {
     const taughtTopics = new Set();
 
     if (state.selectedSubject.teachingPlanLink || state.selectedSubject.code) {
-      const sylCacheKey = 'syl_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.teachingPlanLink || '');
+      const cleanSylCode = String(state.selectedSubject.code || '').trim();
+      const cleanSylLink = String(state.selectedSubject.teachingPlanLink || '').trim();
+      const sylCacheKey = 'syl_' + cleanSylCode + '_' + cleanSylLink;
       const cachedSyl = (window.API && API._getCache) ? API._getCache(sylCacheKey) : null;
 
       const attCacheKey = 'att_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.year || '') + '__' + (state.selectedSubject.outputSheetId || '');
