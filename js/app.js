@@ -705,13 +705,15 @@ const App = (() => {
         } catch (e) {
           console.warn('startAttendanceFlow load error:', e);
         } finally {
-          hideSpinner();
+          if (!hasSyllabusPoints) hideSpinner();
         }
       }
     }
 
     if (hasSyllabusPoints) {
-      const choice = await showSyllabusPicker(syllabusPoints, taughtTopics);
+      const pickerPromise = showSyllabusPicker(syllabusPoints, taughtTopics);
+      hideSpinner();
+      const choice = await pickerPromise;
       if (choice === null) {
         // User cancelled syllabus selection
         return;
