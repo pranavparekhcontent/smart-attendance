@@ -668,37 +668,49 @@ const App = (() => {
         populateTaughtSet(cachedAtt.records);
       }
 
-      // If syllabus is cached locally, load immediately with zero delay
-      if (cachedSyl && cachedSyl.points && cachedSyl.points.length > 0) {
+      // If both syllabus and attendance are already cached, load instantly (0ms)
+      if (cachedSyl && cachedSyl.points && cachedSyl.points.length > 0 && cachedAtt && cachedAtt.records) {
         syllabusPoints = cachedSyl.points;
         hasSyllabusPoints = true;
-
-        // If attendance was not cached yet, fetch in background and badge taught topics live
-        if (!cachedAtt && state.selectedSubject.code && state.selectedSubject.year) {
-          API.getAttendance(state.selectedSubject.code, state.selectedSubject.year, null, state.selectedSubject.outputSheetId)
-            .then(res => {
-              if (res && res.records) populateTaughtSet(res.records);
-            })
-            .catch(() => {});
-        }
+        populateTaughtSet(cachedAtt.records);
       } else {
-        // Fetch missing syllabus with spinner only if not available locally
-        showSpinner('Loading Syllabus...', 'ph-book-open');
+        // Fetch missing syllabus and attendance concurrently with spinner before opening picker
+        showSpinner('Loading Syllabus & Topics...', 'ph-book-open');
         try {
-          // Lazy fetch: only await lightweight syllabus points for 3x faster loading
-          const res = await API.getSyllabusPoints(state.selectedSubject.teachingPlanLink, state.selectedSubject.code);
-          if (res && res.success && res.points && res.points.length > 0) {
-            syllabusPoints = res.points;
+          const promises = [];
+
+          if (cachedSyl && cachedSyl.points && cachedSyl.points.length > 0) {
+            syllabusPoints = cachedSyl.points;
             hasSyllabusPoints = true;
+          } else {
+            promises.push(
+              API.getSyllabusPoints(state.selectedSubject.teachingPlanLink, state.selectedSubject.code)
+                .then(res => {
+                  if (res && res.success && res.points && res.points.length > 0) {
+                    syllabusPoints = res.points;
+                    hasSyllabusPoints = true;
+                  }
+                })
+                .catch(e => console.warn('Error fetching syllabus points:', e))
+            );
           }
 
-          // Fetch attendance completely in background without blocking UI
-          if (!cachedAtt && state.selectedSubject.code && state.selectedSubject.year) {
-            API.getAttendance(state.selectedSubject.code, state.selectedSubject.year, null, state.selectedSubject.outputSheetId)
-              .then(attRes => {
-                if (attRes && attRes.records) populateTaughtSet(attRes.records);
-              })
-              .catch(() => {});
+          if (cachedAtt && cachedAtt.records) {
+            populateTaughtSet(cachedAtt.records);
+          } else if (state.selectedSubject.code && state.selectedSubject.year) {
+            promises.push(
+              API.getAttendance(state.selectedSubject.code, state.selectedSubject.year, null, state.selectedSubject.outputSheetId)
+                .then(res => {
+                  if (res && res.records) {
+                    populateTaughtSet(res.records);
+                  }
+                })
+                .catch(e => console.warn('Error fetching attendance for taught topics:', e))
+            );
+          }
+
+          if (promises.length > 0) {
+            await Promise.all(promises);
           }
         } catch (e) {
           console.warn('startAttendanceFlow load error:', e);
