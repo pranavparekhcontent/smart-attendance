@@ -568,7 +568,7 @@ select.input {
 }
 .modal-backdrop.closing { animation: backdropOut 0.3s ease forwards; }
 
-@keyframes backdropIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes backdropIn { from { opacity: 1; } to { opacity: 1; } }
 @keyframes backdropOut { to { opacity: 0; } }
 
 .modal {
@@ -581,11 +581,11 @@ select.input {
   max-height: 85dvh; 
   overflow-y: auto;
   box-shadow: var(--neu-shadow-lg);
-  animation: modalCenterIn 0.4s cubic-bezier(0.34,1.56,0.64,1);
+  animation: modalCenterIn 0.2s ease-out;
 }
 .modal.closing { animation: modalCenterOut 0.3s ease forwards; }
 
-@keyframes modalCenterIn { from { opacity: 0; transform: scale(0.9) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+@keyframes modalCenterIn { from { opacity: 1; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes modalCenterOut { to { opacity: 0; transform: scale(0.9); } }
 
 .modal-handle {
@@ -605,9 +605,9 @@ select.input {
   border-radius: var(--radius-xl);
   margin: 24px; width: auto; max-width: 380px;
   border: 1px solid rgba(255,255,255,0.08);
-  animation: modalCenterInCentered 0.4s cubic-bezier(0.34,1.56,0.64,1);
+  animation: modalCenterInCentered 0.2s ease-out;
 }
-@keyframes modalCenterInCentered { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+@keyframes modalCenterInCentered { from { opacity: 1; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
 .modal-centered { align-items: center; }
 
 
