@@ -874,7 +874,7 @@ function _getAttendanceUncached(code, year, date, outputSheetId, sheetId) {
     var lc = s.getLastColumn(), lr = s.getLastRow();
     if (lc < 6 || lr < 8) continue;
     
-    var attData = s.getDataRange().getValues();
+    var attData = s.getRange(1, 1, lr, lc).getValues();
     if (!attData || attData.length < 8) continue;
 
     var hdrRowIdx = -1;
@@ -1045,10 +1045,12 @@ function getSyllabusPointsFromLink(url, code) {
     return [];
   }
   
-  var data = sheet.getDataRange().getValues();
-  if (data.length <= 1) {
+  var lr = sheet.getLastRow(), lc = sheet.getLastColumn();
+  if (lr <= 1 || lc < 1) {
     return [];
   }
+  
+  var data = sheet.getRange(1, 1, lr, lc).getValues();
   
   var colIdx = -1;
   var headerRowIdx = -1;
