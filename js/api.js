@@ -261,9 +261,7 @@ const API = (() => {
    * Fetch syllabus points from an external sheet link
    */
   async function getSyllabusPoints(link, code) {
-    const cleanCode = String(code || '').trim();
-    const cleanLink = String(link || '').trim();
-    const cacheKey = 'syl_' + cleanCode + '_' + cleanLink;
+    const cacheKey = 'syl_' + (code || '') + '_' + (link || '');
     const cached = _getCache(cacheKey);
     if (cached && cached.points && cached.points.length > 0) {
       return cached;

@@ -373,8 +373,8 @@ const App = (() => {
         if (card) card.classList.remove('heart-beat');
 
         // Silent background pre-fetches for instant zero-latency syllabus picker
-        if (sub.teachingPlanLink || sub.code) {
-          API.getSyllabusPoints(sub.teachingPlanLink || '', sub.code).catch(() => {});
+        if (sub.teachingPlanLink) {
+          API.getSyllabusPoints(sub.teachingPlanLink, sub.code).catch(() => {});
         }
         if (sub.code && sub.year) {
           API.getAttendance(sub.code, sub.year, null, sub.outputSheetId).catch(() => {});
@@ -529,7 +529,6 @@ const App = (() => {
           }
         });
       }
-      window._updateTaughtChipsInDOM = _updateTaughtChipsInDOM;
 
       // Filter chips
       window._filterSylChips = (query) => {
@@ -624,11 +623,9 @@ const App = (() => {
         delete window._toggleSylCustom;
         delete window._confirmSyllabus;
         delete window._cancelSyllabus;
-        delete window._updateTaughtChipsInDOM;
       }
 
       showModal(html);
-      hideSpinner();
     });
   }
 
@@ -640,10 +637,8 @@ const App = (() => {
     let syllabusPoints = [];
     const taughtTopics = new Set();
 
-    if (state.selectedSubject.teachingPlanLink || state.selectedSubject.code) {
-      const cleanSylCode = String(state.selectedSubject.code || '').trim();
-      const cleanSylLink = String(state.selectedSubject.teachingPlanLink || '').trim();
-      const sylCacheKey = 'syl_' + cleanSylCode + '_' + cleanSylLink;
+    if (state.selectedSubject.teachingPlanLink) {
+      const sylCacheKey = 'syl_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.teachingPlanLink || '');
       const cachedSyl = (window.API && API._getCache) ? API._getCache(sylCacheKey) : null;
 
       const attCacheKey = 'att_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.year || '') + '__' + (state.selectedSubject.outputSheetId || '');
@@ -661,14 +656,7 @@ const App = (() => {
             });
           }
         });
-        if (window._updateTaughtChipsInDOM) {
-          window._updateTaughtChipsInDOM(taughtTopics);
-        }
       };
-
-      if (cachedAtt && cachedAtt.records) {
-        populateTaughtSet(cachedAtt.records);
-      }
 
       // If both syllabus and attendance are already cached, load instantly (0ms)
       if (cachedSyl && cachedSyl.points && cachedSyl.points.length > 0 && cachedAtt && cachedAtt.records) {
@@ -676,7 +664,7 @@ const App = (() => {
         hasSyllabusPoints = true;
         populateTaughtSet(cachedAtt.records);
       } else {
-        // Fetch missing syllabus and attendance concurrently with spinner before opening picker
+        // Fetch missing syllabus and/or attendance concurrently with spinner before opening picker
         showSpinner('Loading Syllabus & Topics...', 'ph-book-open');
         try {
           const promises = [];
@@ -686,7 +674,7 @@ const App = (() => {
             hasSyllabusPoints = true;
           } else {
             promises.push(
-              API.getSyllabusPoints(state.selectedSubject.teachingPlanLink || '', state.selectedSubject.code)
+              API.getSyllabusPoints(state.selectedSubject.teachingPlanLink, state.selectedSubject.code)
                 .then(res => {
                   if (res && res.success && res.points && res.points.length > 0) {
                     syllabusPoints = res.points;
@@ -717,7 +705,7 @@ const App = (() => {
         } catch (e) {
           console.warn('startAttendanceFlow load error:', e);
         } finally {
-          if (!hasSyllabusPoints) hideSpinner();
+          hideSpinner();
         }
       }
     }
@@ -730,7 +718,6 @@ const App = (() => {
       }
       topic = choice;
     } else {
-      hideSpinner();
       Toast.show('Please add syllabus in teaching plan excel', 'warning');
       topic = await promptTopic();
       if (!topic) return;
@@ -1782,10 +1769,7 @@ const App = (() => {
 
   function closeModal(e) {
     if (e && e.target !== document.getElementById('modal-backdrop')) return;
-    const backdrop = document.getElementById('modal-backdrop');
-    const content = document.getElementById('modal-content');
-    if (backdrop) backdrop.style.display = 'none';
-    if (content) content.innerHTML = '';
+    document.getElementById('modal-backdrop').style.display = 'none';
   }
 
   let _spinnerWatchdog = null;
