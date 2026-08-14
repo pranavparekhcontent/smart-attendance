@@ -373,8 +373,8 @@ const App = (() => {
         if (card) card.classList.remove('heart-beat');
 
         // Silent background pre-fetches for instant zero-latency syllabus picker
-        if (sub.teachingPlanLink) {
-          API.getSyllabusPoints(sub.teachingPlanLink, sub.code).catch(() => {});
+        if (sub.teachingPlanLink || sub.code) {
+          API.getSyllabusPoints(sub.teachingPlanLink || '', sub.code).catch(() => {});
         }
         if (sub.code && sub.year) {
           API.getAttendance(sub.code, sub.year, null, sub.outputSheetId).catch(() => {});
@@ -640,7 +640,7 @@ const App = (() => {
     let syllabusPoints = [];
     const taughtTopics = new Set();
 
-    if (state.selectedSubject.teachingPlanLink) {
+    if (state.selectedSubject.teachingPlanLink || state.selectedSubject.code) {
       const sylCacheKey = 'syl_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.teachingPlanLink || '');
       const cachedSyl = (window.API && API._getCache) ? API._getCache(sylCacheKey) : null;
 
@@ -684,7 +684,7 @@ const App = (() => {
             hasSyllabusPoints = true;
           } else {
             promises.push(
-              API.getSyllabusPoints(state.selectedSubject.teachingPlanLink, state.selectedSubject.code)
+              API.getSyllabusPoints(state.selectedSubject.teachingPlanLink || '', state.selectedSubject.code)
                 .then(res => {
                   if (res && res.success && res.points && res.points.length > 0) {
                     syllabusPoints = res.points;
