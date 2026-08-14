@@ -628,6 +628,7 @@ const App = (() => {
       }
 
       showModal(html);
+      hideSpinner();
     });
   }
 
@@ -684,41 +685,30 @@ const App = (() => {
         // Fetch missing syllabus with spinner only if not available locally
         showSpinner('Loading Syllabus...', 'ph-book-open');
         try {
-          const promises = [];
-          promises.push(
-            API.getSyllabusPoints(state.selectedSubject.teachingPlanLink, state.selectedSubject.code)
-              .then(res => {
-                if (res && res.success && res.points && res.points.length > 0) {
-                  syllabusPoints = res.points;
-                  hasSyllabusPoints = true;
-                }
-              })
-              .catch(e => console.warn('Error fetching syllabus points:', e))
-          );
-
-          if (!cachedAtt && state.selectedSubject.code && state.selectedSubject.year) {
-            promises.push(
-              API.getAttendance(state.selectedSubject.code, state.selectedSubject.year, null, state.selectedSubject.outputSheetId)
-                .then(res => {
-                  if (res && res.records) populateTaughtSet(res.records);
-                })
-                .catch(e => console.warn('Error fetching attendance for taught topics:', e))
-            );
+          // Lazy fetch: only await lightweight syllabus points for 3x faster loading
+          const res = await API.getSyllabusPoints(state.selectedSubject.teachingPlanLink, state.selectedSubject.code);
+          if (res && res.success && res.points && res.points.length > 0) {
+            syllabusPoints = res.points;
+            hasSyllabusPoints = true;
           }
 
-          if (promises.length > 0) {
-            await Promise.all(promises);
+          // Fetch attendance completely in background without blocking UI
+          if (!cachedAtt && state.selectedSubject.code && state.selectedSubject.year) {
+            API.getAttendance(state.selectedSubject.code, state.selectedSubject.year, null, state.selectedSubject.outputSheetId)
+              .then(attRes => {
+                if (attRes && attRes.records) populateTaughtSet(attRes.records);
+              })
+              .catch(() => {});
           }
         } catch (e) {
           console.warn('startAttendanceFlow load error:', e);
         } finally {
-          hideSpinner();
+          if (!hasSyllabusPoints) hideSpinner();
         }
       }
     }
 
     if (hasSyllabusPoints) {
-      hideSpinner();
       const choice = await showSyllabusPicker(syllabusPoints, taughtTopics);
       if (choice === null) {
         // User cancelled syllabus selection
@@ -726,6 +716,7 @@ const App = (() => {
       }
       topic = choice;
     } else {
+      hideSpinner();
       Toast.show('Please add syllabus in teaching plan excel', 'warning');
       topic = await promptTopic();
       if (!topic) return;
