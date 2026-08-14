@@ -376,8 +376,8 @@ const App = (() => {
         if (sub.teachingPlanLink) {
           API.getSyllabusPoints(sub.teachingPlanLink, sub.code).catch(() => {});
         }
-        if (sub.code) {
-          API.getTaughtTopics(sub.code, sub.outputSheetId).catch(() => {});
+        if (sub.code && sub.year) {
+          API.getAttendance(sub.code, sub.year, null, sub.outputSheetId).catch(() => {});
         }
       } else if (mode === 'reports') {
         state.reportsSubject = sub;
@@ -641,16 +641,16 @@ const App = (() => {
       const sylCacheKey = 'syl_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.teachingPlanLink || '');
       const cachedSyl = (window.API && API._getCache) ? API._getCache(sylCacheKey) : null;
 
-      const taughtCacheKey = 'taught_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.outputSheetId || '');
-      const cachedTaught = (window.API && API._getCache) ? API._getCache(taughtCacheKey) : null;
+      const attCacheKey = 'att_' + (state.selectedSubject.code || '') + '_' + (state.selectedSubject.year || '') + '__' + (state.selectedSubject.outputSheetId || '');
+      const cachedAtt = (window.API && API._getCache) ? API._getCache(attCacheKey) : null;
 
-      const populateTaughtSet = (topics) => {
-        if (!topics || !topics.length) return;
-        topics.forEach(top => {
-          if (top && String(top).trim()) {
-            const raw = String(top).trim().toLowerCase();
+      const populateTaughtSet = (records) => {
+        if (!records || !records.length) return;
+        records.forEach(rec => {
+          if (rec.topic && rec.topic.trim()) {
+            const raw = rec.topic.trim().toLowerCase();
             taughtTopics.add(raw);
-            String(top).split(',').forEach(part => {
+            rec.topic.split(',').forEach(part => {
               const t = part.trim().toLowerCase();
               if (t) taughtTopics.add(t);
             });
@@ -658,13 +658,13 @@ const App = (() => {
         });
       };
 
-      // If both syllabus and taught topics are already cached, load instantly (0ms)
-      if (cachedSyl && cachedSyl.points && cachedSyl.points.length > 0 && cachedTaught && cachedTaught.topics) {
+      // If both syllabus and attendance are already cached, load instantly (0ms)
+      if (cachedSyl && cachedSyl.points && cachedSyl.points.length > 0 && cachedAtt && cachedAtt.records) {
         syllabusPoints = cachedSyl.points;
         hasSyllabusPoints = true;
-        populateTaughtSet(cachedTaught.topics);
+        populateTaughtSet(cachedAtt.records);
       } else {
-        // Fetch missing syllabus and/or taught topics concurrently with spinner before opening picker
+        // Fetch missing syllabus and/or attendance concurrently with spinner before opening picker
         showSpinner('Loading Syllabus & Topics...', 'ph-book-open');
         try {
           const promises = [];
@@ -685,17 +685,17 @@ const App = (() => {
             );
           }
 
-          if (cachedTaught && cachedTaught.topics) {
-            populateTaughtSet(cachedTaught.topics);
-          } else if (state.selectedSubject.code) {
+          if (cachedAtt && cachedAtt.records) {
+            populateTaughtSet(cachedAtt.records);
+          } else if (state.selectedSubject.code && state.selectedSubject.year) {
             promises.push(
-              API.getTaughtTopics(state.selectedSubject.code, state.selectedSubject.outputSheetId)
+              API.getAttendance(state.selectedSubject.code, state.selectedSubject.year, null, state.selectedSubject.outputSheetId)
                 .then(res => {
-                  if (res && res.topics) {
-                    populateTaughtSet(res.topics);
+                  if (res && res.records) {
+                    populateTaughtSet(res.records);
                   }
                 })
-                .catch(e => console.warn('Error fetching taught topics:', e))
+                .catch(e => console.warn('Error fetching attendance for taught topics:', e))
             );
           }
 
